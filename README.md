@@ -12,6 +12,12 @@ Keep architecture, critical logic, and hard decisions on your expensive frontier
         result: text + session + token usage + actions taken
 ```
 
+## Why this exists
+
+**The problem:** frontier models (Claude, GPT-class) are your best tool for architecture, hard bugs, and judgment calls — and expensive overkill for the mechanical majority of real coding work: boilerplate, tests, lint/type fixes, repetitive multi-file edits. Doing all of it with your primary agent burns premium tokens and fills its context with busywork instead of the decisions that actually need it.
+
+**What this tool does:** it gives your primary agent a tool to hand that busywork to a cheaper model — or a free one — running through OpenCode, without leaving your workflow. The primary agent stays focused on what matters; the cheap model grinds through the repetitive stuff and reports back. Which model does the work is a config change, not a redeploy — switch it any time.
+
 ## Install
 
 The easiest path is the web configurator, which builds a one-line install command for you:
