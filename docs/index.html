@@ -397,6 +397,11 @@
   // Example scenarios (real provider/model ids). Extend this list any time.
   var CUSTOM = "__custom__";
   var PRESETS = [
+    { group: "OpenCode Free (no signup)", items: [
+      { id: "opencode/deepseek-v4-flash-free", label: "DeepSeek V4 Flash (Free)", cost: "free · no signup", note: "Zero setup — no provider account or API key needed. The easiest way to try delegation right now. Shared free tier, so expect lower rate limits than paid options." },
+      { id: "opencode/north-mini-code-free", label: "North Mini Code (Free)", cost: "free · no signup", note: "Cohere's code-tuned model — same zero-setup free tier." },
+      { id: "opencode/mimo-v2.5-free", label: "Mimo V2.5 (Free)", cost: "free · no signup", note: "Xiaomi's Mimo — another option on the same free tier." }
+    ]},
     { group: "MiniMax · Coding Plan (subscription)", items: [
       { id: "minimax-coding-plan/MiniMax-M2.5-highspeed", label: "MiniMax M2.5 · high-speed", cost: "$0 · plan", note: "Cheap and fast — a great default for busywork." },
       { id: "minimax-coding-plan/MiniMax-M2.7-highspeed", label: "MiniMax M2.7 · high-speed", cost: "$0 · plan", note: "A bit stronger, still fast." },

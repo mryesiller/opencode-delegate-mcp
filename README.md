@@ -40,8 +40,19 @@ The installer will:
 Then restart your agent (or reload its MCP servers).
 
 ### Requirements
-- [OpenCode](https://opencode.ai) installed and at least one provider authenticated (`opencode auth login`).
+- [OpenCode](https://opencode.ai) installed.
 - Node.js ≥ 18, npm, and git.
+- A provider authenticated (`opencode auth login`) — **unless** you use one of OpenCode's free `opencode/*` models below, which need no signup or API key at all.
+
+### Try it for free — zero signup
+
+OpenCode ships a handful of free, no-auth-required models under the `opencode/` provider. Use one to try delegation immediately, with nothing to configure:
+
+```bash
+curl -fsSL https://mryesiller.github.io/opencode-delegate-mcp/install.sh | bash -s -- --model "opencode/deepseek-v4-flash-free" --targets "claude,codex"
+```
+
+Other free options: `opencode/north-mini-code-free`, `opencode/mimo-v2.5-free`. They're on a shared free tier, so expect lower rate limits than a paid provider — switch any time with `config set` (see **Dynamic model / provider switching** below) once you've got a key.
 
 ## Tools
 
