@@ -6,11 +6,17 @@
 # agents (Claude Code, Codex, OpenCode) so a primary agent can offload grunt
 # work to a cheaper model via OpenCode.
 #
-# Usage:
+# Usage (one-liner, recommended):
+#   curl -fsSL <url>/install.sh | bash -s -- --model "provider/model" --targets claude,codex
+#
+# Usage (download first, inspect, then run):
+#   curl -fsSL <url>/install.sh -o install.sh && less install.sh   # inspect
 #   bash install.sh --model "provider/model" [--targets claude,codex,opencode] \
 #                   [--timeout 600] [--default-dir /path] [--opencode-bin /path]
 #
-# All flags are optional; missing required values are prompted interactively.
+# --model is required. When run interactively (a real terminal) without it,
+# you'll be prompted. When piped (curl | bash), pass it explicitly — there's
+# no stdin left to prompt with.
 #
 set -euo pipefail
 
@@ -51,6 +57,8 @@ die()  { err "$*"; exit 1; }
 usage() {
   cat <<EOF
 ${BOLD}opencode-delegate-mcp installer${RST}
+
+  One-liner:  curl -fsSL <url>/install.sh | bash -s -- --model provider/model --targets claude,codex
 
   --model <provider/model>   Default model, e.g. minimax-coding-plan/MiniMax-M2.5-highspeed
   --targets <list>           Comma list of hosts to register: claude,codex,opencode (default: claude,codex)
@@ -106,8 +114,12 @@ fi
 
 # --- prompt for model if missing --------------------------------------------
 if [ -z "$MODEL" ]; then
-  printf "%sDefault provider/model%s (e.g. minimax-coding-plan/MiniMax-M2.5-highspeed): " "$BOLD" "$RST"
-  read -r MODEL
+  if [ -t 0 ]; then
+    printf "%sDefault provider/model%s (e.g. minimax-coding-plan/MiniMax-M2.5-highspeed): " "$BOLD" "$RST"
+    read -r MODEL
+  else
+    die "No --model given and input isn't interactive (likely running via curl | bash). Pass it explicitly, e.g.: curl -fsSL <url> | bash -s -- --model minimax-coding-plan/MiniMax-M2.5-highspeed"
+  fi
 fi
 [ -n "$MODEL" ] || die "A default model is required."
 case "$MODEL" in */*) ;; *) warn "Model '$MODEL' does not look like 'provider/model'.";; esac

@@ -134,12 +134,15 @@
   pre {
     margin: 0; background: #0a0c11; color: #e8ecf5; border: 1px solid var(--border-strong);
     border-radius: 12px; padding: 16px 16px; overflow-x: auto; font-family: var(--mono);
-    font-size: 13px; line-height: 1.7; white-space: pre;
+    font-size: 13px; line-height: 1.7;
+    /* The copied text is always a single physical line (no comments, no \-continuations)
+       so pasting into any terminal runs it as one atomic command. This just wraps it
+       visually so it stays readable without horizontal scrolling. */
+    white-space: pre-wrap; word-break: break-word;
   }
   :root[data-theme="light"] pre { background: #0f1420; color: #e8ecf5; }
   pre .fl { color: var(--accent-2); }
   pre .st { color: #ffb4a2; }
-  pre .cm { color: #7a8496; }
   .copy {
     position: absolute; top: 10px; right: 10px; border: 1px solid var(--border-strong); background: var(--card);
     color: var(--fg); border-radius: 8px; padding: 6px 12px; font-size: 12.5px; font-weight: 600; cursor: pointer;
@@ -315,11 +318,12 @@
 
     <div class="card">
       <h2 id="outHead">2 · Install command</h2>
+      <p class="cardlead" id="outLead">One command, one paste. Copy it and run it in your terminal — it downloads and installs in a single step, no follow-up needed.</p>
       <div class="out">
         <button class="copy" id="copy">Copy</button>
         <pre id="cmd"><code></code></pre>
       </div>
-      <p style="margin:12px 0 0" id="revealWrap"><a class="reveal" href="install.sh" target="_blank" rel="noopener">📄 Read install.sh before running →</a></p>
+      <p style="margin:12px 0 0" id="revealWrap"><a class="reveal" href="install.sh" target="_blank" rel="noopener">📄 Prefer to inspect the script first? Read install.sh →</a></p>
       <div class="note" id="privacyNote">
         <span>🔒</span>
         <span>This page runs entirely in your browser — nothing you type is uploaded. The installer never stores API keys; provider auth stays in <b>OpenCode</b> (<code>opencode auth login</code>).</span>
@@ -478,56 +482,36 @@
     return out;
   }
 
+  // Both builders return { prefix: "<command start>", flags: [{fl,val}, ...] } —
+  // always rendered as ONE physical line (no comments, no \-continuations), so
+  // pasting it into any terminal runs the whole thing as a single atomic command.
   function buildInstall() {
     var targets = Array.prototype.slice.call(document.querySelectorAll(".target:checked")).map(function (c) { return c.value; });
     var policy = Array.prototype.slice.call(document.querySelectorAll(".policy:checked")).map(function (c) { return c.value; });
     var cf = configFlags();
-    var model = cf.shift(); // --model
-    var run = [{ t: "plain", s: "bash /tmp/ocd-install.sh" }, model, { fl: "--targets", val: targets.join(",") || "claude" }].concat(cf);
-    if (policy.length) run.push({ fl: "--policy", val: policy.join(",") });
-    return {
-      header: [
-        { t: "cm", s: "# 1) download the installer (inspect it if you like)" },
-        { t: "plain", s: "curl -fsSL " + BASE + " -o /tmp/ocd-install.sh" },
-        { t: "cm", s: "# 2) run it with your settings" }
-      ],
-      run: run
-    };
+    var model = cf.shift(); // --model always first
+    var flags = [model, { fl: "--targets", val: targets.join(",") || "claude" }].concat(cf);
+    if (policy.length) flags.push({ fl: "--policy", val: policy.join(",") });
+    return { prefix: "curl -fsSL " + BASE + " | bash -s --", flags: flags };
   }
 
   function buildUpdate() {
     var inst = ($("instdir").value || "$HOME/.local/share/opencode-delegate-mcp").trim().replace(/\/+$/, "");
     var entry = inst + "/dist/index.js";
-    var run = [{ t: "plain", s: "node " + dq(entry) + " config set" }].concat(configFlags());
-    return {
-      header: [
-        { t: "cm", s: "# reconfigure without reinstalling — applies on the next delegation" }
-      ],
-      run: run
-    };
+    return { prefix: "node " + dq(entry) + " config set", flags: configFlags() };
   }
 
   function renderHTML(data) {
-    var html = "";
-    data.header.forEach(function (l) {
-      html += (l.t === "cm" ? '<span class="cm">' + esc(l.s) + "</span>" : esc(l.s)) + "\n";
+    var html = esc(data.prefix);
+    data.flags.forEach(function (f) {
+      html += ' <span class="fl">' + esc(f.fl) + "</span> " + '<span class="st">' + esc(shq(f.val)) + "</span>";
     });
-    data.run.forEach(function (part, i) {
-      var last = i === data.run.length - 1;
-      if (part.t === "plain") html += esc(part.s) + (last ? "" : " \\") + "\n";
-      else html += "  " + '<span class="fl">' + esc(part.fl) + "</span> " + '<span class="st">' + esc(shq(part.val)) + "</span>" + (last ? "" : " \\") + "\n";
-    });
-    return html.replace(/\n$/, "");
+    return html;
   }
   function renderText(data) {
-    var out = "";
-    data.header.forEach(function (l) { out += l.s + "\n"; });
-    data.run.forEach(function (part, i) {
-      var last = i === data.run.length - 1;
-      if (part.t === "plain") out += part.s + (last ? "" : " \\") + "\n";
-      else out += "  " + part.fl + " " + shq(part.val) + (last ? "" : " \\") + "\n";
-    });
-    return out.replace(/\n$/, "");
+    var out = data.prefix;
+    data.flags.forEach(function (f) { out += " " + f.fl + " " + shq(f.val); });
+    return out;
   }
 
   var currentText = "";
@@ -547,6 +531,9 @@
     $("modeSub").textContent = install
       ? "Run the script once to install & register the server."
       : "Already installed? Change model/provider or other settings — no reinstall.";
+    $("outLead").textContent = install
+      ? "One command, one paste. Copy it and run it in your terminal — it downloads and installs in a single step, no follow-up needed."
+      : "One command, one paste. Copy it and run it in your terminal — it updates the running config immediately, no restart needed.";
     $("targetsField").classList.toggle("hidden", !install);
     $("policyField").classList.toggle("hidden", !install);
     $("instDirField").classList.toggle("hidden", install);

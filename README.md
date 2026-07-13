@@ -18,11 +18,18 @@ The easiest path is the web configurator, which builds a one-line install comman
 
 👉 **https://mryesiller.github.io/opencode-delegate-mcp/**
 
-Or install directly from the terminal:
+Or install directly from the terminal — one command, one paste, done:
 
 ```bash
-curl -fsSL https://mryesiller.github.io/opencode-delegate-mcp/install.sh -o /tmp/ocd-install.sh
-bash /tmp/ocd-install.sh --model "minimax-coding-plan/MiniMax-M2.5-highspeed" --targets "claude,codex"
+curl -fsSL https://mryesiller.github.io/opencode-delegate-mcp/install.sh | bash -s -- --model "minimax-coding-plan/MiniMax-M2.5-highspeed" --targets "claude,codex"
+```
+
+Prefer to inspect the script before running it? Download first, then run it locally:
+
+```bash
+curl -fsSL https://mryesiller.github.io/opencode-delegate-mcp/install.sh -o install.sh
+less install.sh   # read it
+bash install.sh --model "minimax-coding-plan/MiniMax-M2.5-highspeed" --targets "claude,codex"
 ```
 
 The installer will:
