@@ -54,18 +54,28 @@ The primary agent calls `delegate_task` with `directory: "~/code/app"` and your 
 
 ## When does it delegate?
 
-Installing the tools doesn't force an agent to use them — the primary model decides when to call them, guided by its **instruction file** (`CLAUDE.md` for Claude Code, `AGENTS.md` for Codex). Add a **delegation policy** there to control it, and edit the conditions to fit your project.
+Installing the tools doesn't force an agent to use them — **it decides**, guided by its **instruction file** (`CLAUDE.md` for Claude Code, `AGENTS.md` for Codex). Add the delegation policy there to control it, and edit the conditions to fit your project.
 
-- 📄 Full guide: [docs/DELEGATION.md](docs/DELEGATION.md) — how triggering works, the case table, and how to customize.
-- 📋 Drop-in policy: [docs/delegation-policy.md](docs/delegation-policy.md) — paste into `CLAUDE.md` / `AGENTS.md`.
+| ✅ Delegate — high volume, low risk | ⛔ Keep on the primary agent |
+| --- | --- |
+| Tests for well-specified behavior (`delegate_tests`) | Architecture, system design, choosing abstractions |
+| Boilerplate & scaffolding (CRUD, DTOs, fixtures, mocks) | Security-sensitive code (auth, crypto, secrets, permissions) |
+| Mechanical edits across many files (renames, prop propagation, import updates) | Concurrency, performance-critical paths, subtle correctness |
+| Lint / formatting / type-error fixes | Ambiguous / underspecified requirements needing judgment |
+| Docstrings, comments, README / changelog sections | Public API / interface design, breaking changes |
+| Straightforward data transforms or migrations with a clear spec | Debugging unknown root causes |
+| Obvious glue code / format conversions | Anything costly or hard to detect if the edit is wrong |
 
-Add it during install with `--policy` (or tick the boxes in the web configurator):
+**Rule of thumb:** high volume + low risk → delegate. Low volume + high risk → keep it. Unsure → keep it.
+
+- 📄 Full guide: [docs/DELEGATION.md](docs/DELEGATION.md) — how triggering works and how to customize the conditions.
+- 📋 Drop-in policy: [docs/delegation-policy.md](docs/delegation-policy.md) — the exact block to paste into `CLAUDE.md` / `AGENTS.md` (this table plus preconditions and briefing tips).
+
+Install it during setup with `--policy` (or tick the boxes in the web configurator) — idempotent, safe to run more than once:
 
 ```bash
 bash /tmp/ocd-install.sh --model "…" --targets "claude,codex" --policy "claude,codex"
 ```
-
-The default policy delegates high-volume / low-risk work (tests, boilerplate, mechanical edits, lint/type fixes, docs) and keeps architecture, security, concurrency, and ambiguous work on the primary model. **Rule of thumb:** high volume + low risk → delegate; unsure → keep it.
 
 ## Dynamic model / provider switching
 
