@@ -52,6 +52,21 @@ Then restart your agent (or reload its MCP servers).
 
 The primary agent calls `delegate_task` with `directory: "~/code/app"` and your task text; the cheap model does the mechanical work and reports back.
 
+## When does it delegate?
+
+Installing the tools doesn't force an agent to use them — the primary model decides when to call them, guided by its **instruction file** (`CLAUDE.md` for Claude Code, `AGENTS.md` for Codex). Add a **delegation policy** there to control it, and edit the conditions to fit your project.
+
+- 📄 Full guide: [docs/DELEGATION.md](docs/DELEGATION.md) — how triggering works, the case table, and how to customize.
+- 📋 Drop-in policy: [docs/delegation-policy.md](docs/delegation-policy.md) — paste into `CLAUDE.md` / `AGENTS.md`.
+
+Add it during install with `--policy` (or tick the boxes in the web configurator):
+
+```bash
+bash /tmp/ocd-install.sh --model "…" --targets "claude,codex" --policy "claude,codex"
+```
+
+The default policy delegates high-volume / low-risk work (tests, boilerplate, mechanical edits, lint/type fixes, docs) and keeps architecture, security, concurrency, and ambiguous work on the primary model. **Rule of thumb:** high volume + low risk → delegate; unsure → keep it.
+
 ## Dynamic model / provider switching
 
 You install once; you reconfigure as often as you like. A single config file is read **fresh on every call**, so switching the cheap model, provider, or any other setting never requires reinstalling. Four equivalent ways:

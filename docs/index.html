@@ -214,6 +214,17 @@
         </div>
       </div>
 
+      <div class="field" id="policyField">
+        <label>Delegation policy <span class="hint">— optional</span></label>
+        <p class="hint">Teaches the agent <b>when</b> to auto-delegate. <a class="reveal" href="https://github.com/mryesiller/opencode-delegate-mcp/blob/main/docs/DELEGATION.md" target="_blank" rel="noopener">When does it delegate? →</a></p>
+        <div class="checks">
+          <label class="check"><input type="checkbox" class="policy" value="claude">
+            <span><span class="t">Add to CLAUDE.md</span><br><span class="d">Claude Code · <code>~/.claude/CLAUDE.md</code></span></span></label>
+          <label class="check"><input type="checkbox" class="policy" value="codex">
+            <span><span class="t">Add to AGENTS.md</span><br><span class="d">Codex · <code>~/.codex/AGENTS.md</code></span></span></label>
+        </div>
+      </div>
+
       <details class="adv">
         <summary>Advanced options</summary>
         <div class="field">
@@ -270,6 +281,7 @@
         <li>Restart your agent (or reload its MCP servers) so it picks up <code>opencode-delegate</code>.</li>
         <li>Ask it to delegate — e.g. <em>"Use delegate_task to add tests for src/utils in this repo."</em></li>
         <li>Switch the cheap model any time via the <b>Update settings</b> tab — no reinstall.</li>
+        <li>Decide <b>when</b> it delegates on its own — <a class="reveal" href="https://github.com/mryesiller/opencode-delegate-mcp/blob/main/docs/DELEGATION.md" target="_blank" rel="noopener">read &amp; edit the delegation policy →</a></li>
       </ol>
     </div>
   </div>
@@ -380,9 +392,11 @@
 
   function buildInstall() {
     var targets = Array.prototype.slice.call(document.querySelectorAll(".target:checked")).map(function (c) { return c.value; });
+    var policy = Array.prototype.slice.call(document.querySelectorAll(".policy:checked")).map(function (c) { return c.value; });
     var cf = configFlags();
     var model = cf.shift(); // --model
     var run = [{ t: "plain", s: "bash /tmp/ocd-install.sh" }, model, { fl: "--targets", val: targets.join(",") || "claude" }].concat(cf);
+    if (policy.length) run.push({ fl: "--policy", val: policy.join(",") });
     return {
       header: [
         { t: "cm", s: "# 1) download the installer (inspect it if you like)" },
@@ -446,6 +460,7 @@
       ? "Run the script once to install & register the server."
       : "Already installed? Change model/provider or other settings — no reinstall.";
     $("targetsField").classList.toggle("hidden", !install);
+    $("policyField").classList.toggle("hidden", !install);
     $("instDirField").classList.toggle("hidden", install);
     $("revealWrap").classList.toggle("hidden", !install);
     $("privacyNote").classList.toggle("hidden", !install);

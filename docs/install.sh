@@ -32,6 +32,7 @@ DEFAULT_DIR=""
 OPENCODE_BIN=""
 AGENT=""
 VARIANT=""
+POLICY=""
 REPO_URL="$REPO_URL_DEFAULT"
 INSTALL_DIR="$INSTALL_DIR_DEFAULT"
 
@@ -57,6 +58,7 @@ ${BOLD}opencode-delegate-mcp installer${RST}
   --default-dir <path>       Default working directory for delegations (optional)
   --agent <name>             Default OpenCode agent (optional)
   --variant <name>           Default reasoning-effort variant, e.g. high (optional)
+  --policy <list>            Append the delegation policy to instruction files: claude,codex (optional)
   --opencode-bin <path>      Path to the opencode binary (default: auto-detect)
   --repo <url>               Git repo URL to install from (default: $REPO_URL_DEFAULT)
   --install-dir <path>       Where to clone the server (default: $INSTALL_DIR_DEFAULT)
@@ -73,6 +75,7 @@ while [ $# -gt 0 ]; do
     --default-dir) DEFAULT_DIR="${2:-}"; shift 2;;
     --agent) AGENT="${2:-}"; shift 2;;
     --variant) VARIANT="${2:-}"; shift 2;;
+    --policy) POLICY="${2:-}"; shift 2;;
     --opencode-bin) OPENCODE_BIN="${2:-}"; shift 2;;
     --repo) REPO_URL="${2:-}"; shift 2;;
     --install-dir) INSTALL_DIR="${2:-}"; shift 2;;
@@ -197,6 +200,36 @@ for t in "${TARR[@]}"; do
   esac
 done
 
+# --- delegation policy (optional) -------------------------------------------
+apply_policy_file() {
+  local file="$1" name="$2"
+  local tpl="$INSTALL_DIR/docs/delegation-policy.md"
+  [ -f "$tpl" ] || { warn "Policy template not found at $tpl; skipping."; return; }
+  mkdir -p "$(dirname "$file")"
+  if [ -f "$file" ] && grep -q "opencode-delegate-mcp:policy:start" "$file" 2>/dev/null; then
+    ok "$name already contains the delegation policy ($file)"
+    return
+  fi
+  { printf "\n"; cat "$tpl"; } >> "$file"
+  ok "Added delegation policy to $name ($file)"
+}
+
+if [ -n "$POLICY" ] && [ "$POLICY" != "none" ]; then
+  echo
+  info "Adding delegation policy to: $POLICY"
+  IFS=',' read -ra PARR <<< "$POLICY"
+  for pt in "${PARR[@]}"; do
+    case "$(echo "$pt" | tr -d '[:space:]')" in
+      claude|claude-code) apply_policy_file "$HOME/.claude/CLAUDE.md" "Claude Code (CLAUDE.md)";;
+      codex) apply_policy_file "$HOME/.codex/AGENTS.md" "Codex (AGENTS.md)";;
+      both) apply_policy_file "$HOME/.claude/CLAUDE.md" "Claude Code (CLAUDE.md)"; apply_policy_file "$HOME/.codex/AGENTS.md" "Codex (AGENTS.md)";;
+      "") ;;
+      *) warn "Unknown policy target '$pt' (valid: claude, codex)";;
+    esac
+  done
+  printf "   %sEdit the policy any time to change what gets delegated.%s\n" "$DIM" "$RST"
+fi
+
 # --- provider auth reminder -------------------------------------------------
 PROVIDER="${MODEL%%/*}"
 echo
@@ -215,6 +248,10 @@ cat <<EOF
 
   Try it from your primary agent:
     "Use delegate_task to create a file test.txt containing 'hi' in <your repo path>."
+
+  When will it delegate on its own? See the policy you can edit:
+    $INSTALL_DIR/docs/delegation-policy.md
+    https://github.com/${REPO_OWNER}/${REPO_NAME}/blob/main/docs/DELEGATION.md
 
   Change the model/provider any time (no reinstall) — from the terminal:
     node "$ENTRY" config set --model openrouter/minimax/minimax-m2.5
