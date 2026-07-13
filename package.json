@@ -1,0 +1,43 @@
+{
+  "name": "opencode-delegate-mcp",
+  "version": "0.1.0",
+  "description": "MCP server that lets a primary coding agent (Claude Code, Codex) delegate grunt work to cheaper models via OpenCode.",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "opencode-delegate-mcp": "dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx watch src/index.ts",
+    "clean": "rm -rf dist",
+    "prepare": "npm run build"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "opencode",
+    "claude-code",
+    "codex",
+    "subagent",
+    "delegation"
+  ],
+  "author": "mryesiller",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

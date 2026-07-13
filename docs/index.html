@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>opencode-delegate-mcp · setup</title>
+<meta name="description" content="Configure and install the opencode-delegate MCP server: let Claude Code or Codex delegate grunt work to a cheaper model via OpenCode." />
+<style>
+  :root {
+    --bg: #0b0d12;
+    --bg-soft: #12151d;
+    --card: #161a24;
+    --card-2: #1b2030;
+    --border: #262c3a;
+    --border-strong: #333c4f;
+    --fg: #e7ebf3;
+    --fg-dim: #9aa4b8;
+    --fg-faint: #6b7488;
+    --accent: #6ea8fe;
+    --accent-2: #7ee0c0;
+    --accent-ink: #071018;
+    --warn: #ffcf70;
+    --radius: 14px;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f6f8fc; --bg-soft: #eef2f8; --card: #ffffff; --card-2: #f4f7fb;
+      --border: #e2e8f2; --border-strong: #cfd8e6; --fg: #131722; --fg-dim: #4a5566;
+      --fg-faint: #7a8496; --accent: #2563eb; --accent-2: #0d9488; --accent-ink: #ffffff;
+      --warn: #9a6b00;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font-family: var(--sans); line-height: 1.55;
+    background-image: radial-gradient(1200px 600px at 80% -10%, rgba(110,168,254,.12), transparent 60%),
+                      radial-gradient(900px 500px at -10% 10%, rgba(126,224,192,.10), transparent 55%);
+  }
+  .wrap { max-width: 940px; margin: 0 auto; padding: 40px 20px 80px; }
+  header.hero { text-align: center; margin-bottom: 34px; }
+  .badge {
+    display: inline-flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 600;
+    color: var(--fg-dim); background: var(--card); border: 1px solid var(--border);
+    padding: 5px 11px; border-radius: 999px; letter-spacing: .02em;
+  }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent-2); box-shadow: 0 0 0 3px rgba(126,224,192,.18); }
+  h1 { font-size: clamp(28px, 5vw, 40px); margin: 18px 0 8px; letter-spacing: -.02em; line-height: 1.1; }
+  h1 .grad { background: linear-gradient(92deg, var(--accent), var(--accent-2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .tag { color: var(--fg-dim); font-size: 17px; max-width: 620px; margin: 0 auto; }
+
+  .flow {
+    display: flex; align-items: stretch; justify-content: center; gap: 10px; flex-wrap: wrap;
+    margin: 26px auto 0; max-width: 760px;
+  }
+  .flow .node {
+    flex: 1 1 200px; min-width: 170px; background: var(--card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 12px 14px; text-align: left;
+  }
+  .flow .node b { display: block; font-size: 14px; }
+  .flow .node span { font-size: 12.5px; color: var(--fg-faint); }
+  .flow .arrow { align-self: center; color: var(--accent); font-size: 20px; font-weight: 700; }
+
+  .grid { display: grid; grid-template-columns: 1fr; gap: 20px; margin-top: 30px; }
+  @media (min-width: 780px) { .grid { grid-template-columns: 1fr 1fr; } .grid .full { grid-column: 1 / -1; } }
+
+  .card {
+    background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 22px; box-shadow: 0 1px 0 rgba(255,255,255,.02), 0 10px 30px rgba(0,0,0,.18);
+  }
+  @media (prefers-color-scheme: light) { .card { box-shadow: 0 1px 2px rgba(16,24,40,.04), 0 12px 28px rgba(16,24,40,.06); } }
+  .card h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--fg-faint); margin: 0 0 16px; }
+
+  label { display: block; font-size: 13.5px; font-weight: 600; margin: 0 0 6px; }
+  .hint { font-size: 12px; color: var(--fg-faint); font-weight: 400; margin: 0 0 8px; }
+  .field { margin-bottom: 18px; }
+  .field:last-child { margin-bottom: 0; }
+  input[type=text], input[type=number], select {
+    width: 100%; background: var(--bg-soft); color: var(--fg); border: 1px solid var(--border-strong);
+    border-radius: 10px; padding: 10px 12px; font-size: 14px; font-family: var(--mono);
+    outline: none; transition: border-color .15s, box-shadow .15s;
+  }
+  input:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(110,168,254,.18); }
+
+  .checks { display: grid; gap: 8px; }
+  .check {
+    display: flex; align-items: flex-start; gap: 11px; padding: 11px 13px; border: 1px solid var(--border-strong);
+    border-radius: 10px; cursor: pointer; background: var(--bg-soft); transition: border-color .15s, background .15s;
+  }
+  .check:hover { border-color: var(--accent); }
+  .check input { margin-top: 3px; accent-color: var(--accent); width: 16px; height: 16px; }
+  .check .t { font-weight: 600; font-size: 14px; }
+  .check .d { font-size: 12.5px; color: var(--fg-faint); }
+
+  details.adv { margin-top: 4px; border-top: 1px dashed var(--border); padding-top: 14px; }
+  details.adv summary { cursor: pointer; font-size: 13px; color: var(--fg-dim); font-weight: 600; list-style: none; }
+  details.adv summary::-webkit-details-marker { display: none; }
+  details.adv summary::before { content: "▸ "; color: var(--accent); }
+  details.adv[open] summary::before { content: "▾ "; }
+  details.adv .field { margin-top: 16px; }
+
+  .out { position: relative; }
+  pre {
+    margin: 0; background: #0a0c11; color: #e8ecf5; border: 1px solid var(--border-strong);
+    border-radius: 12px; padding: 16px 16px; overflow-x: auto; font-family: var(--mono);
+    font-size: 13px; line-height: 1.7; white-space: pre;
+  }
+  @media (prefers-color-scheme: light) { pre { background: #0f1420; color: #e8ecf5; } }
+  pre .fl { color: var(--accent-2); }
+  pre .st { color: #ffb4a2; }
+  pre .cm { color: #7a8496; }
+  .copy {
+    position: absolute; top: 10px; right: 10px; border: 1px solid var(--border-strong); background: var(--card);
+    color: var(--fg); border-radius: 8px; padding: 6px 12px; font-size: 12.5px; font-weight: 600; cursor: pointer;
+    transition: background .15s, border-color .15s;
+  }
+  .copy:hover { border-color: var(--accent); }
+  .copy.ok { color: var(--accent-2); border-color: var(--accent-2); }
+
+  .steps { counter-reset: s; list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
+  .steps li { display: flex; gap: 12px; align-items: flex-start; font-size: 14px; color: var(--fg-dim); }
+  .steps li::before {
+    counter-increment: s; content: counter(s); flex: 0 0 24px; height: 24px; border-radius: 50%;
+    background: var(--card-2); border: 1px solid var(--border-strong); color: var(--fg); font-size: 12px;
+    font-weight: 700; display: grid; place-items: center;
+  }
+  .steps code, p code, li code, td code { font-family: var(--mono); font-size: 12.5px; background: var(--card-2); border: 1px solid var(--border); padding: 1px 6px; border-radius: 6px; }
+
+  .note { display: flex; gap: 10px; font-size: 13px; color: var(--fg-dim); background: var(--card-2); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; margin-top: 16px; }
+  .note b { color: var(--warn); }
+
+  footer { text-align: center; margin-top: 46px; color: var(--fg-faint); font-size: 13px; }
+  footer a { color: var(--accent); text-decoration: none; }
+  footer a:hover { text-decoration: underline; }
+  a.reveal { color: var(--accent); font-size: 12.5px; text-decoration: none; }
+  a.reveal:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="hero">
+    <span class="badge"><span class="dot"></span> MCP server · agent-to-agent delegation</span>
+    <h1>opencode&#8209;delegate&#8209;<span class="grad">mcp</span></h1>
+    <p class="tag">Let <b>Claude Code</b> or <b>Codex</b> hand the grunt work to a <b>cheaper model</b> via OpenCode. Configure below and copy your one-line installer.</p>
+    <div class="flow">
+      <div class="node"><b>Primary agent</b><span>Claude Code / Codex — architecture &amp; hard calls</span></div>
+      <div class="arrow">→</div>
+      <div class="node"><b>delegate-mcp</b><span>routes the task to a cheap model</span></div>
+      <div class="arrow">→</div>
+      <div class="node"><b>OpenCode</b><span>runs MiniMax &amp; friends on the busywork</span></div>
+    </div>
+  </header>
+
+  <div class="grid">
+    <div class="card">
+      <h2>1 · Configure</h2>
+
+      <div class="field">
+        <label for="model">Default model <span class="hint">— provider/model</span></label>
+        <p class="hint">The cheap model that does the busywork. Run <code>opencode models</code> for the full list.</p>
+        <input type="text" id="model" list="models" value="minimax-coding-plan/MiniMax-M2.5-highspeed" spellcheck="false" autocapitalize="off" />
+        <datalist id="models">
+          <option value="minimax-coding-plan/MiniMax-M2.5-highspeed"></option>
+          <option value="minimax-coding-plan/MiniMax-M2.7-highspeed"></option>
+          <option value="minimax-coding-plan/MiniMax-M3"></option>
+          <option value="openrouter/minimax/minimax-m2.5"></option>
+          <option value="openrouter/minimax/minimax-m2"></option>
+          <option value="openrouter/deepseek/deepseek-chat"></option>
+          <option value="openrouter/z-ai/glm-4.6"></option>
+        </datalist>
+      </div>
+
+      <div class="field">
+        <label>Install into</label>
+        <p class="hint">Which agents should get the <code>delegate_*</code> tools.</p>
+        <div class="checks">
+          <label class="check"><input type="checkbox" class="target" value="claude" checked>
+            <span><span class="t">Claude Code</span><br><span class="d">registers via <code>claude mcp add -s user</code></span></span></label>
+          <label class="check"><input type="checkbox" class="target" value="codex" checked>
+            <span><span class="t">Codex</span><br><span class="d">registers via <code>codex mcp add</code></span></span></label>
+          <label class="check"><input type="checkbox" class="target" value="opencode">
+            <span><span class="t">OpenCode</span><br><span class="d">adds to <code>opencode.json</code> (self-delegation)</span></span></label>
+        </div>
+      </div>
+
+      <details class="adv">
+        <summary>Advanced options</summary>
+        <div class="field">
+          <label for="timeout">Timeout <span class="hint">— seconds per delegation</span></label>
+          <input type="number" id="timeout" value="600" min="30" step="30" />
+        </div>
+        <div class="field">
+          <label for="dir">Default working directory <span class="hint">— optional</span></label>
+          <p class="hint">Leave blank to use the calling agent's current directory.</p>
+          <input type="text" id="dir" placeholder="/Users/you/code/my-app" spellcheck="false" autocapitalize="off" />
+        </div>
+        <div class="field">
+          <label for="bin">OpenCode binary path <span class="hint">— optional</span></label>
+          <p class="hint">Leave blank to auto-detect with <code>command -v opencode</code>.</p>
+          <input type="text" id="bin" placeholder="/opt/homebrew/bin/opencode" spellcheck="false" autocapitalize="off" />
+        </div>
+      </details>
+    </div>
+
+    <div class="card">
+      <h2>2 · Install command</h2>
+      <div class="out">
+        <button class="copy" id="copy">Copy</button>
+        <pre id="cmd"><code></code></pre>
+      </div>
+      <p style="margin:12px 0 0"><a class="reveal" href="install.sh" target="_blank" rel="noopener">📄 Read install.sh before running →</a></p>
+      <div class="note">
+        <span>🔒</span>
+        <span>This page runs entirely in your browser — nothing you type is uploaded. The installer never stores API keys; provider auth stays in <b>OpenCode</b> (<code>opencode auth login</code>).</span>
+      </div>
+    </div>
+
+    <div class="card full">
+      <h2>3 · After installing</h2>
+      <ol class="steps">
+        <li>Make sure your provider is authenticated: <code>opencode auth login</code>.</li>
+        <li>Restart your agent (or reload its MCP servers) so it picks up <code>opencode-delegate</code>.</li>
+        <li>Ask it to delegate — e.g. <em>"Use delegate_task to add tests for src/utils in this repo."</em></li>
+        <li>Switch the cheap model any time, no reinstall: <code>set_delegate_config { "default_model": "..." }</code>.</li>
+      </ol>
+    </div>
+  </div>
+
+  <footer>
+    <p>
+      <a href="https://github.com/mryesiller/opencode-delegate-mcp" target="_blank" rel="noopener">GitHub</a> ·
+      <a href="https://opencode.ai" target="_blank" rel="noopener">OpenCode</a> ·
+      <a href="https://modelcontextprotocol.io" target="_blank" rel="noopener">MCP</a>
+      &nbsp;—&nbsp; MIT © mryesiller
+    </p>
+  </footer>
+</div>
+
+<script>
+  var BASE = "https://mryesiller.github.io/opencode-delegate-mcp/install.sh";
+  var $ = function (id) { return document.getElementById(id); };
+
+  function shq(s) { return "\"" + String(s).replace(/(["\\$`])/g, "\\$1") + "\""; }
+
+  function build() {
+    var model = ($("model").value || "").trim();
+    var targets = Array.prototype.slice.call(document.querySelectorAll(".target:checked")).map(function (c) { return c.value; });
+    var timeout = parseInt($("timeout").value, 10);
+    var dir = ($("dir").value || "").trim();
+    var bin = ($("bin").value || "").trim();
+
+    var lines = [];
+    lines.push({ t: "cm", s: "# 1) download the installer (inspect it if you like)" });
+    lines.push({ t: "cmd", s: "curl -fsSL " + BASE + " -o /tmp/ocd-install.sh" });
+    lines.push({ t: "cm", s: "# 2) run it with your settings" });
+
+    var run = [{ t: "plain", s: "bash /tmp/ocd-install.sh" }];
+    run.push({ t: "cont", fl: "--model", val: model });
+    run.push({ t: "cont", fl: "--targets", val: targets.join(",") || "claude" });
+    if (!isNaN(timeout) && timeout !== 600) run.push({ t: "cont", fl: "--timeout", val: String(timeout) });
+    if (dir) run.push({ t: "cont", fl: "--default-dir", val: dir });
+    if (bin) run.push({ t: "cont", fl: "--opencode-bin", val: bin });
+
+    return { header: lines, run: run };
+  }
+
+  function renderHTML(data) {
+    var html = "";
+    data.header.forEach(function (l) {
+      if (l.t === "cm") html += '<span class="cm">' + esc(l.s) + "</span>\n";
+      else html += esc(l.s) + "\n";
+    });
+    data.run.forEach(function (part, i) {
+      var last = i === data.run.length - 1;
+      if (part.t === "plain") {
+        html += esc(part.s) + (last ? "" : " \\") + "\n";
+      } else {
+        html += "  " + '<span class="fl">' + esc(part.fl) + "</span> " +
+          '<span class="st">' + esc(shq(part.val)) + "</span>" + (last ? "" : " \\") + "\n";
+      }
+    });
+    return html.replace(/\n$/, "");
+  }
+
+  function renderText(data) {
+    var out = "";
+    data.header.forEach(function (l) { out += l.s + "\n"; });
+    data.run.forEach(function (part, i) {
+      var last = i === data.run.length - 1;
+      if (part.t === "plain") out += part.s + (last ? "" : " \\") + "\n";
+      else out += "  " + part.fl + " " + shq(part.val) + (last ? "" : " \\") + "\n";
+    });
+    return out.replace(/\n$/, "");
+  }
+
+  function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+
+  var currentText = "";
+  function update() {
+    var data = build();
+    $("cmd").querySelector("code").innerHTML = renderHTML(data);
+    currentText = renderText(data);
+  }
+
+  document.addEventListener("input", update);
+  document.addEventListener("change", update);
+  $("copy").addEventListener("click", function () {
+    navigator.clipboard.writeText(currentText).then(function () {
+      var b = $("copy"); b.textContent = "Copied ✓"; b.classList.add("ok");
+      setTimeout(function () { b.textContent = "Copy"; b.classList.remove("ok"); }, 1600);
+    });
+  });
+  update();
+</script>
+</body>
+</html>
