@@ -199,7 +199,11 @@
     .wrap { padding: 26px 13px 60px; }
     .card { padding: 18px; }
     .flow { flex-direction: column; gap: 8px; max-width: 340px; margin-top: 22px; }
-    .flow .node { width: 100%; }
+    /* Base rule sets flex: 1 1 200px for the desktop ROW layout (200px = width,
+       grow to fill). In this column layout that basis/grow would apply to
+       HEIGHT instead, stretching each box to fill leftover vertical space —
+       reset it so boxes size to their content. */
+    .flow .node { width: 100%; flex: 0 0 auto; }
     .flow .arrow { transform: rotate(90deg); }
     .seg button { padding: 8px 16px; }
     .theme-toggle { top: 12px; right: 12px; width: 38px; height: 38px; font-size: 16px; }
