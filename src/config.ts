@@ -28,6 +28,9 @@ export const ProfileSchema = z
 
 export type Profile = z.infer<typeof ProfileSchema>;
 
+/** A profiles patch: set a name to a Profile to add/replace it, or to `null` to remove it. */
+export type ProfilesPatch = Record<string, Profile | null>;
+
 export const ConfigSchema = z
   .object({
     /** Path or name of the OpenCode binary. */
@@ -84,14 +87,27 @@ export function saveConfig(config: DelegateConfig): DelegateConfig {
   return validated;
 }
 
-/** Shallow-merge a partial update into the on-disk config and persist it. */
-export function updateConfig(patch: Partial<DelegateConfig>): DelegateConfig {
+/**
+ * Shallow-merge a partial update into the on-disk config and persist it.
+ *
+ * `profiles` is merged rather than replaced: existing names are kept unless
+ * the patch names them explicitly. Set a profile's value to `null` to remove
+ * it — this is the only way to delete a profile, since a normal merge can
+ * only add or overwrite entries.
+ */
+export function updateConfig(
+  patch: Partial<Omit<DelegateConfig, "profiles">> & { profiles?: ProfilesPatch },
+): DelegateConfig {
   const current = loadConfig();
+  const mergedProfiles: Record<string, Profile> = { ...current.profiles };
+  for (const [name, value] of Object.entries(patch.profiles ?? {})) {
+    if (value === null) delete mergedProfiles[name];
+    else mergedProfiles[name] = value;
+  }
   const merged: DelegateConfig = {
     ...current,
     ...patch,
-    // Merge profiles rather than replacing the whole map.
-    profiles: { ...current.profiles, ...(patch.profiles ?? {}) },
+    profiles: mergedProfiles,
   };
   return saveConfig(merged);
 }

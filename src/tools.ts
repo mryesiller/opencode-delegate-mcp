@@ -18,6 +18,7 @@ import {
   getConfigPath,
   ProfileSchema,
   type DelegateConfig,
+  type ProfilesPatch,
 } from "./config.js";
 import type { Backend, DelegateRequest, DelegateResult } from "./backend.js";
 
@@ -392,7 +393,7 @@ Args:
     "set_delegate_config",
     {
       title: "Update the delegate configuration",
-      description: `Change the active delegation settings at runtime — this is how you dynamically switch the cheap model or provider without reinstalling. Only the fields you pass are updated; profiles are merged. Returns the updated config.
+      description: `Change the active delegation settings at runtime — this is how you dynamically switch the cheap model or provider without reinstalling. Only the fields you pass are updated. Returns the updated config.
 
 Args (all optional):
   - default_model (string): provider/model used when a call omits one, e.g. "openrouter/minimax/minimax-m2.5".
@@ -402,7 +403,7 @@ Args (all optional):
   - timeout_ms (number): per-delegation timeout in milliseconds.
   - default_directory (string): default working directory.
   - opencode_bin (string): path/name of the opencode binary.
-  - profiles (object): map of name -> { model?, agent?, variant?, autoApprove? } to merge in.`,
+  - profiles (object): map of name -> { model?, agent?, variant?, autoApprove? }. Profiles are MERGED, not replaced — existing ones are kept unless you name them. To ADD or UPDATE a profile, give it a value; to REMOVE one, set its value to null: { "profiles": { "tests": null } }.`,
       inputSchema: {
         default_model: z.string().min(1).optional().describe("provider/model default"),
         default_agent: z.string().min(1).optional(),
@@ -411,7 +412,10 @@ Args (all optional):
         timeout_ms: z.number().int().positive().optional(),
         default_directory: z.string().min(1).optional(),
         opencode_bin: z.string().min(1).optional(),
-        profiles: z.record(z.string(), ProfileSchema).optional().describe("Named presets to merge"),
+        profiles: z
+          .record(z.string(), ProfileSchema.nullable())
+          .optional()
+          .describe("Named presets to merge in; set a name's value to null to remove that profile"),
       },
       annotations: {
         readOnlyHint: false,
@@ -432,7 +436,9 @@ Args (all optional):
       if (args.profiles !== undefined) patch.profiles = args.profiles;
 
       try {
-        const updated = updateConfig(patch as Partial<DelegateConfig>);
+        const updated = updateConfig(
+          patch as Partial<Omit<DelegateConfig, "profiles">> & { profiles?: ProfilesPatch },
+        );
         const payload = { config_path: getConfigPath(), config: updated };
         return {
           content: [

@@ -1,6 +1,6 @@
 {
   "name": "opencode-delegate-mcp",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "MCP server that lets a primary coding agent (Claude Code, Codex) delegate grunt work to cheaper models via OpenCode.",
   "type": "module",
   "main": "dist/index.js",

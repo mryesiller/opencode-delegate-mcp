@@ -139,6 +139,13 @@ You can also override per call (`delegate_task { model: "...", ... }`) or define
 // then: delegate_task { profile: "tests", ... }
 ```
 
+Profiles are **merged**, not replaced — existing ones survive unless you name them (an empty `{ "profiles": {} }` patch is a no-op, it won't wipe your profiles). To remove a profile, set its value to `null`:
+
+```jsonc
+// set_delegate_config
+{ "profiles": { "tests": null } }   // removes just "tests"; other profiles are untouched
+```
+
 ## Configuration reference
 
 `~/.config/opencode-delegate/config.json` (override path with `OPENCODE_DELEGATE_CONFIG`):
