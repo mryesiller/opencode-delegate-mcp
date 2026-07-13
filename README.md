@@ -54,12 +54,32 @@ The primary agent calls `delegate_task` with `directory: "~/code/app"` and your 
 
 ## Dynamic model / provider switching
 
-Everything is driven by a single config file that is read fresh on every call, so you can switch the cheap model or provider without reinstalling — either by editing `~/.config/opencode-delegate/config.json` or via the tool:
+You install once; you reconfigure as often as you like. A single config file is read **fresh on every call**, so switching the cheap model, provider, or any other setting never requires reinstalling. Four equivalent ways:
 
-```jsonc
-// set_delegate_config
-{ "default_model": "openrouter/minimax/minimax-m2.5" }   // switch provider+model
-{ "default_model": "minimax-coding-plan/MiniMax-M2.7-highspeed", "timeout_ms": 900000 }
+1. **Web configurator → "Update settings" tab** — generates a one-line `config set` command.
+2. **Terminal CLI** (works wherever the server is installed):
+   ```bash
+   node ~/.local/share/opencode-delegate-mcp/dist/index.js config set --model openrouter/minimax/minimax-m2.5
+   node ~/.local/share/opencode-delegate-mcp/dist/index.js config get
+   ```
+3. **From your agent**, via the tool:
+   ```jsonc
+   // set_delegate_config
+   { "default_model": "openrouter/minimax/minimax-m2.5" }   // switch provider+model
+   { "default_model": "minimax-coding-plan/MiniMax-M2.7-highspeed", "timeout_ms": 900000 }
+   ```
+4. **Edit the file** directly: `~/.config/opencode-delegate/config.json`.
+
+### `config` CLI
+
+```
+node dist/index.js config get                     # print current config
+node dist/index.js config path                    # print config file path
+node dist/index.js config set [flags]             # patch config (only provided flags change)
+
+  --model <provider/model>   --agent <name>        --variant <name>
+  --timeout <seconds>        --default-dir <path>  --opencode-bin <path>
+  --auto-approve <bool>
 ```
 
 You can also override per call (`delegate_task { model: "...", ... }`) or define reusable profiles:

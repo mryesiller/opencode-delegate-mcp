@@ -30,6 +30,8 @@ TARGETS="claude,codex"
 TIMEOUT_SEC="600"
 DEFAULT_DIR=""
 OPENCODE_BIN=""
+AGENT=""
+VARIANT=""
 REPO_URL="$REPO_URL_DEFAULT"
 INSTALL_DIR="$INSTALL_DIR_DEFAULT"
 
@@ -53,6 +55,8 @@ ${BOLD}opencode-delegate-mcp installer${RST}
   --targets <list>           Comma list of hosts to register: claude,codex,opencode (default: claude,codex)
   --timeout <seconds>        Per-delegation timeout in seconds (default: 600)
   --default-dir <path>       Default working directory for delegations (optional)
+  --agent <name>             Default OpenCode agent (optional)
+  --variant <name>           Default reasoning-effort variant, e.g. high (optional)
   --opencode-bin <path>      Path to the opencode binary (default: auto-detect)
   --repo <url>               Git repo URL to install from (default: $REPO_URL_DEFAULT)
   --install-dir <path>       Where to clone the server (default: $INSTALL_DIR_DEFAULT)
@@ -67,6 +71,8 @@ while [ $# -gt 0 ]; do
     --targets) TARGETS="${2:-}"; shift 2;;
     --timeout) TIMEOUT_SEC="${2:-}"; shift 2;;
     --default-dir) DEFAULT_DIR="${2:-}"; shift 2;;
+    --agent) AGENT="${2:-}"; shift 2;;
+    --variant) VARIANT="${2:-}"; shift 2;;
     --opencode-bin) OPENCODE_BIN="${2:-}"; shift 2;;
     --repo) REPO_URL="${2:-}"; shift 2;;
     --install-dir) INSTALL_DIR="${2:-}"; shift 2;;
@@ -125,7 +131,7 @@ ok "Built $ENTRY"
 info "Writing config to $CONFIG_PATH"
 mkdir -p "$CONFIG_DIR"
 TIMEOUT_MS=$(( TIMEOUT_SEC * 1000 ))
-CFG="$CONFIG_PATH" OCBIN="$OPENCODE_BIN" MODEL="$MODEL" TMS="$TIMEOUT_MS" DDIR="$DEFAULT_DIR" \
+CFG="$CONFIG_PATH" OCBIN="$OPENCODE_BIN" MODEL="$MODEL" TMS="$TIMEOUT_MS" DDIR="$DEFAULT_DIR" AGENT="$AGENT" VARIANT="$VARIANT" \
 node -e '
   const fs = require("fs");
   const p = process.env.CFG;
@@ -136,6 +142,8 @@ node -e '
   c.timeoutMs = parseInt(process.env.TMS, 10);
   if (c.autoApprove === undefined) c.autoApprove = true;
   if (process.env.DDIR) c.defaultDirectory = process.env.DDIR;
+  if (process.env.AGENT) c.defaultAgent = process.env.AGENT;
+  if (process.env.VARIANT) c.defaultVariant = process.env.VARIANT;
   if (!c.profiles) c.profiles = {};
   fs.writeFileSync(p, JSON.stringify(c, null, 2) + "\n");
 ' || die "Failed to write config."
@@ -208,8 +216,12 @@ cat <<EOF
   Try it from your primary agent:
     "Use delegate_task to create a file test.txt containing 'hi' in <your repo path>."
 
-  Change the model/provider any time (no reinstall):
+  Change the model/provider any time (no reinstall) — from the terminal:
+    node "$ENTRY" config set --model openrouter/minimax/minimax-m2.5
+    node "$ENTRY" config get
+  …from your agent:
     set_delegate_config { "default_model": "openrouter/minimax/minimax-m2.5" }
+  …or use the "Update settings" tab of the web configurator.
 
   Restart your agent (or reload MCP servers) so it picks up the new server.
 EOF

@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>opencode-delegate-mcp · setup</title>
-<meta name="description" content="Configure and install the opencode-delegate MCP server: let Claude Code or Codex delegate grunt work to a cheaper model via OpenCode." />
+<meta name="description" content="Configure and install the opencode-delegate MCP server: let Claude Code or Codex delegate grunt work to a cheaper model via OpenCode. Reconfigure any time." />
 <style>
   :root {
     --bg: #0b0d12;
@@ -41,7 +41,7 @@
                       radial-gradient(900px 500px at -10% 10%, rgba(126,224,192,.10), transparent 55%);
   }
   .wrap { max-width: 940px; margin: 0 auto; padding: 40px 20px 80px; }
-  header.hero { text-align: center; margin-bottom: 34px; }
+  header.hero { text-align: center; margin-bottom: 20px; }
   .badge {
     display: inline-flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 600;
     color: var(--fg-dim); background: var(--card); border: 1px solid var(--border);
@@ -54,7 +54,7 @@
 
   .flow {
     display: flex; align-items: stretch; justify-content: center; gap: 10px; flex-wrap: wrap;
-    margin: 26px auto 0; max-width: 760px;
+    margin: 24px auto 0; max-width: 760px;
   }
   .flow .node {
     flex: 1 1 200px; min-width: 170px; background: var(--card); border: 1px solid var(--border);
@@ -64,7 +64,17 @@
   .flow .node span { font-size: 12.5px; color: var(--fg-faint); }
   .flow .arrow { align-self: center; color: var(--accent); font-size: 20px; font-weight: 700; }
 
-  .grid { display: grid; grid-template-columns: 1fr; gap: 20px; margin-top: 30px; }
+  .modebar { display: flex; justify-content: center; margin: 28px 0 4px; }
+  .seg { display: inline-flex; background: var(--card); border: 1px solid var(--border); border-radius: 999px; padding: 4px; gap: 4px; }
+  .seg button {
+    border: 0; background: transparent; color: var(--fg-dim); font: inherit; font-size: 13.5px; font-weight: 600;
+    padding: 8px 20px; border-radius: 999px; cursor: pointer; transition: background .15s, color .15s;
+  }
+  .seg button.active { background: linear-gradient(92deg, var(--accent), var(--accent-2)); color: var(--accent-ink); }
+  .seg button:not(.active):hover { color: var(--fg); }
+  .mode-sub { text-align: center; color: var(--fg-faint); font-size: 13px; margin: 10px 0 0; }
+
+  .grid { display: grid; grid-template-columns: 1fr; gap: 20px; margin-top: 22px; }
   @media (min-width: 780px) { .grid { grid-template-columns: 1fr 1fr; } .grid .full { grid-column: 1 / -1; } }
 
   .card {
@@ -131,6 +141,7 @@
 
   .note { display: flex; gap: 10px; font-size: 13px; color: var(--fg-dim); background: var(--card-2); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; margin-top: 16px; }
   .note b { color: var(--warn); }
+  .hidden { display: none !important; }
 
   footer { text-align: center; margin-top: 46px; color: var(--fg-faint); font-size: 13px; }
   footer a { color: var(--accent); text-decoration: none; }
@@ -144,7 +155,7 @@
   <header class="hero">
     <span class="badge"><span class="dot"></span> MCP server · agent-to-agent delegation</span>
     <h1>opencode&#8209;delegate&#8209;<span class="grad">mcp</span></h1>
-    <p class="tag">Let <b>Claude Code</b> or <b>Codex</b> hand the grunt work to a <b>cheaper model</b> via OpenCode. Configure below and copy your one-line installer.</p>
+    <p class="tag">Let <b>Claude Code</b> or <b>Codex</b> hand the grunt work to a <b>cheaper model</b> via OpenCode.</p>
     <div class="flow">
       <div class="node"><b>Primary agent</b><span>Claude Code / Codex — architecture &amp; hard calls</span></div>
       <div class="arrow">→</div>
@@ -154,9 +165,17 @@
     </div>
   </header>
 
+  <div class="modebar">
+    <div class="seg" role="tablist" aria-label="Mode">
+      <button id="mInstall" class="active" type="button" role="tab">🚀 First install</button>
+      <button id="mUpdate" type="button" role="tab">⚙️ Update settings</button>
+    </div>
+  </div>
+  <p class="mode-sub" id="modeSub">Run the script once to install &amp; register the server.</p>
+
   <div class="grid">
     <div class="card">
-      <h2>1 · Configure</h2>
+      <h2 id="cfgHead">1 · Configure</h2>
 
       <div class="field">
         <label for="model">Default model <span class="hint">— provider/model</span></label>
@@ -173,7 +192,7 @@
         </datalist>
       </div>
 
-      <div class="field">
+      <div class="field" id="targetsField">
         <label>Install into</label>
         <p class="hint">Which agents should get the <code>delegate_*</code> tools.</p>
         <div class="checks">
@@ -198,33 +217,50 @@
           <input type="text" id="dir" placeholder="/Users/you/code/my-app" spellcheck="false" autocapitalize="off" />
         </div>
         <div class="field">
+          <label for="agent">Default agent <span class="hint">— optional</span></label>
+          <input type="text" id="agent" placeholder="build" spellcheck="false" autocapitalize="off" />
+        </div>
+        <div class="field">
+          <label for="variant">Reasoning variant <span class="hint">— optional, e.g. high | minimal</span></label>
+          <input type="text" id="variant" placeholder="" spellcheck="false" autocapitalize="off" />
+        </div>
+        <div class="field">
           <label for="bin">OpenCode binary path <span class="hint">— optional</span></label>
           <p class="hint">Leave blank to auto-detect with <code>command -v opencode</code>.</p>
           <input type="text" id="bin" placeholder="/opt/homebrew/bin/opencode" spellcheck="false" autocapitalize="off" />
+        </div>
+        <div class="field" id="instDirField">
+          <label for="instdir">Install directory <span class="hint">— only for Update settings</span></label>
+          <p class="hint">Where the server was installed (default shown). Used to locate it when reconfiguring.</p>
+          <input type="text" id="instdir" value="$HOME/.local/share/opencode-delegate-mcp" spellcheck="false" autocapitalize="off" />
         </div>
       </details>
     </div>
 
     <div class="card">
-      <h2>2 · Install command</h2>
+      <h2 id="outHead">2 · Install command</h2>
       <div class="out">
         <button class="copy" id="copy">Copy</button>
         <pre id="cmd"><code></code></pre>
       </div>
-      <p style="margin:12px 0 0"><a class="reveal" href="install.sh" target="_blank" rel="noopener">📄 Read install.sh before running →</a></p>
-      <div class="note">
+      <p style="margin:12px 0 0" id="revealWrap"><a class="reveal" href="install.sh" target="_blank" rel="noopener">📄 Read install.sh before running →</a></p>
+      <div class="note" id="privacyNote">
         <span>🔒</span>
         <span>This page runs entirely in your browser — nothing you type is uploaded. The installer never stores API keys; provider auth stays in <b>OpenCode</b> (<code>opencode auth login</code>).</span>
+      </div>
+      <div class="note hidden" id="updateNote">
+        <span>💡</span>
+        <span>You can also reconfigure from your agent — just ask it: <code>set_delegate_config { "default_model": "…" }</code>. Changes are read fresh on the next delegation; no restart needed.</span>
       </div>
     </div>
 
     <div class="card full">
-      <h2>3 · After installing</h2>
-      <ol class="steps">
+      <h2 id="stepsHead">3 · After installing</h2>
+      <ol class="steps" id="stepsList">
         <li>Make sure your provider is authenticated: <code>opencode auth login</code>.</li>
         <li>Restart your agent (or reload its MCP servers) so it picks up <code>opencode-delegate</code>.</li>
         <li>Ask it to delegate — e.g. <em>"Use delegate_task to add tests for src/utils in this repo."</em></li>
-        <li>Switch the cheap model any time, no reinstall: <code>set_delegate_config { "default_model": "..." }</code>.</li>
+        <li>Switch the cheap model any time via the <b>Update settings</b> tab — no reinstall.</li>
       </ol>
     </div>
   </div>
@@ -241,50 +277,71 @@
 
 <script>
   var BASE = "https://mryesiller.github.io/opencode-delegate-mcp/install.sh";
+  var mode = "install"; // "install" | "update"
   var $ = function (id) { return document.getElementById(id); };
-
+  function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+  // Double-quote for shell; escape ", \ and ` but keep $ so $HOME etc. expand.
+  function dq(s) { return "\"" + String(s).replace(/(["\\`])/g, "\\$1") + "\""; }
+  // Double-quote and also escape $ (for literal values that shouldn't expand).
   function shq(s) { return "\"" + String(s).replace(/(["\\$`])/g, "\\$1") + "\""; }
 
-  function build() {
+  // Config-relevant flags (CLI/install.sh flag names), model always first.
+  function configFlags() {
+    var out = [];
     var model = ($("model").value || "").trim();
-    var targets = Array.prototype.slice.call(document.querySelectorAll(".target:checked")).map(function (c) { return c.value; });
     var timeout = parseInt($("timeout").value, 10);
     var dir = ($("dir").value || "").trim();
+    var agent = ($("agent").value || "").trim();
+    var variant = ($("variant").value || "").trim();
     var bin = ($("bin").value || "").trim();
+    out.push({ fl: "--model", val: model });
+    if (!isNaN(timeout) && timeout !== 600) out.push({ fl: "--timeout", val: String(timeout) });
+    if (dir) out.push({ fl: "--default-dir", val: dir });
+    if (agent) out.push({ fl: "--agent", val: agent });
+    if (variant) out.push({ fl: "--variant", val: variant });
+    if (bin) out.push({ fl: "--opencode-bin", val: bin });
+    return out;
+  }
 
-    var lines = [];
-    lines.push({ t: "cm", s: "# 1) download the installer (inspect it if you like)" });
-    lines.push({ t: "cmd", s: "curl -fsSL " + BASE + " -o /tmp/ocd-install.sh" });
-    lines.push({ t: "cm", s: "# 2) run it with your settings" });
+  function buildInstall() {
+    var targets = Array.prototype.slice.call(document.querySelectorAll(".target:checked")).map(function (c) { return c.value; });
+    var cf = configFlags();
+    var model = cf.shift(); // --model
+    var run = [{ t: "plain", s: "bash /tmp/ocd-install.sh" }, model, { fl: "--targets", val: targets.join(",") || "claude" }].concat(cf);
+    return {
+      header: [
+        { t: "cm", s: "# 1) download the installer (inspect it if you like)" },
+        { t: "plain", s: "curl -fsSL " + BASE + " -o /tmp/ocd-install.sh" },
+        { t: "cm", s: "# 2) run it with your settings" }
+      ],
+      run: run
+    };
+  }
 
-    var run = [{ t: "plain", s: "bash /tmp/ocd-install.sh" }];
-    run.push({ t: "cont", fl: "--model", val: model });
-    run.push({ t: "cont", fl: "--targets", val: targets.join(",") || "claude" });
-    if (!isNaN(timeout) && timeout !== 600) run.push({ t: "cont", fl: "--timeout", val: String(timeout) });
-    if (dir) run.push({ t: "cont", fl: "--default-dir", val: dir });
-    if (bin) run.push({ t: "cont", fl: "--opencode-bin", val: bin });
-
-    return { header: lines, run: run };
+  function buildUpdate() {
+    var inst = ($("instdir").value || "$HOME/.local/share/opencode-delegate-mcp").trim().replace(/\/+$/, "");
+    var entry = inst + "/dist/index.js";
+    var run = [{ t: "plain", s: "node " + dq(entry) + " config set" }].concat(configFlags());
+    return {
+      header: [
+        { t: "cm", s: "# reconfigure without reinstalling — applies on the next delegation" }
+      ],
+      run: run
+    };
   }
 
   function renderHTML(data) {
     var html = "";
     data.header.forEach(function (l) {
-      if (l.t === "cm") html += '<span class="cm">' + esc(l.s) + "</span>\n";
-      else html += esc(l.s) + "\n";
+      html += (l.t === "cm" ? '<span class="cm">' + esc(l.s) + "</span>" : esc(l.s)) + "\n";
     });
     data.run.forEach(function (part, i) {
       var last = i === data.run.length - 1;
-      if (part.t === "plain") {
-        html += esc(part.s) + (last ? "" : " \\") + "\n";
-      } else {
-        html += "  " + '<span class="fl">' + esc(part.fl) + "</span> " +
-          '<span class="st">' + esc(shq(part.val)) + "</span>" + (last ? "" : " \\") + "\n";
-      }
+      if (part.t === "plain") html += esc(part.s) + (last ? "" : " \\") + "\n";
+      else html += "  " + '<span class="fl">' + esc(part.fl) + "</span> " + '<span class="st">' + esc(shq(part.val)) + "</span>" + (last ? "" : " \\") + "\n";
     });
     return html.replace(/\n$/, "");
   }
-
   function renderText(data) {
     var out = "";
     data.header.forEach(function (l) { out += l.s + "\n"; });
@@ -296,24 +353,42 @@
     return out.replace(/\n$/, "");
   }
 
-  function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
-
   var currentText = "";
   function update() {
-    var data = build();
+    var data = mode === "update" ? buildUpdate() : buildInstall();
     $("cmd").querySelector("code").innerHTML = renderHTML(data);
     currentText = renderText(data);
   }
 
+  function setMode(m) {
+    mode = m;
+    var install = m === "install";
+    $("mInstall").classList.toggle("active", install);
+    $("mUpdate").classList.toggle("active", !install);
+    $("cfgHead").textContent = install ? "1 · Configure" : "1 · Settings";
+    $("outHead").textContent = install ? "2 · Install command" : "2 · Update command";
+    $("modeSub").textContent = install
+      ? "Run the script once to install & register the server."
+      : "Already installed? Change model/provider or other settings — no reinstall.";
+    $("targetsField").classList.toggle("hidden", !install);
+    $("instDirField").classList.toggle("hidden", install);
+    $("revealWrap").classList.toggle("hidden", !install);
+    $("privacyNote").classList.toggle("hidden", !install);
+    $("updateNote").classList.toggle("hidden", install);
+    update();
+  }
+
   document.addEventListener("input", update);
   document.addEventListener("change", update);
+  $("mInstall").addEventListener("click", function () { setMode("install"); });
+  $("mUpdate").addEventListener("click", function () { setMode("update"); });
   $("copy").addEventListener("click", function () {
     navigator.clipboard.writeText(currentText).then(function () {
       var b = $("copy"); b.textContent = "Copied ✓"; b.classList.add("ok");
       setTimeout(function () { b.textContent = "Copy"; b.classList.remove("ok"); }, 1600);
     });
   });
-  update();
+  setMode("install");
 </script>
 </body>
 </html>

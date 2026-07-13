@@ -14,6 +14,7 @@ import { SERVER_NAME, SERVER_VERSION } from "./constants.js";
 import { OpenCodeBackend } from "./backend.js";
 import { registerTools } from "./tools.js";
 import { loadConfig } from "./config.js";
+import { runConfigCli } from "./cli.js";
 
 async function main(): Promise<void> {
   // `--help` / `--version` for quick CLI sanity checks (used by the installer).
@@ -22,11 +23,18 @@ async function main(): Promise<void> {
     process.stdout.write(`${SERVER_NAME} ${SERVER_VERSION}\n`);
     return;
   }
+  // `config …` : reconfigure from the terminal after installation.
+  if (arg === "config") {
+    process.exit(runConfigCli(process.argv.slice(3)));
+  }
   if (arg === "--help" || arg === "-h") {
     process.stdout.write(
       `${SERVER_NAME} ${SERVER_VERSION}\n\n` +
         "An MCP (stdio) server that delegates coding grunt work to cheaper models via OpenCode.\n\n" +
         "Tools: delegate_task, delegate_tests, list_models, get_delegate_config, set_delegate_config\n\n" +
+        "Reconfigure after install:\n" +
+        "  node dist/index.js config get\n" +
+        "  node dist/index.js config set --model provider/model [--timeout 900] [--default-dir /path]\n\n" +
         "Run this as an MCP server (it speaks JSON-RPC over stdio); it is not meant to be used interactively.\n",
     );
     return;
