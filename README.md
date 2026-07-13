@@ -40,9 +40,15 @@ The installer will:
 Then restart your agent (or reload its MCP servers).
 
 ### Requirements
-- [OpenCode](https://opencode.ai) installed.
-- Node.js ≥ 18, npm, and git.
+- Node.js ≥ 18, npm, git, and curl.
+- [OpenCode](https://opencode.ai) — the installer sets this up for you automatically if it's missing (see below), no separate step needed.
 - A provider authenticated (`opencode auth login`) — **unless** you use one of OpenCode's free `opencode/*` models below, which need no signup or API key at all.
+
+### If OpenCode isn't installed yet
+
+The installer detects this and runs OpenCode's official installer for you — no separate step needed. One thing to know: OpenCode's installer adds `~/.opencode/bin` to your shell's PATH by editing your rc file, but **that only takes effect in new terminal sessions**. So right after a fresh install, the `opencode` command may still say "not found" in your *current* terminal — that's expected. The delegate MCP itself isn't affected (it's configured with the full path), but to use the `opencode` command yourself, either open a new terminal tab or run `source ~/.zshrc` (or your shell's rc file — the installer tells you exactly which one).
+
+Prefer to control this yourself? Pass `--no-install-opencode` to skip auto-install, or install OpenCode manually first from [opencode.ai](https://opencode.ai).
 
 ### Try it for free — zero signup
 

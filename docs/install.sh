@@ -39,8 +39,11 @@ OPENCODE_BIN=""
 AGENT=""
 VARIANT=""
 POLICY=""
+NO_INSTALL_OPENCODE="0"
 REPO_URL="$REPO_URL_DEFAULT"
 INSTALL_DIR="$INSTALL_DIR_DEFAULT"
+OPENCODE_DEFAULT_BIN="$HOME/.opencode/bin/opencode"
+NEEDS_PATH_HINT="0"
 
 # --- pretty logging ---------------------------------------------------------
 if [ -t 1 ]; then
@@ -68,6 +71,7 @@ ${BOLD}opencode-delegate-mcp installer${RST}
   --variant <name>           Default reasoning-effort variant, e.g. high (optional)
   --policy <list>            Append the delegation policy to instruction files: claude,codex (optional)
   --opencode-bin <path>      Path to the opencode binary (default: auto-detect)
+  --no-install-opencode      Don't auto-install OpenCode if it's missing (just warn instead)
   --repo <url>               Git repo URL to install from (default: $REPO_URL_DEFAULT)
   --install-dir <path>       Where to clone the server (default: $INSTALL_DIR_DEFAULT)
   -h, --help                 Show this help
@@ -85,6 +89,7 @@ while [ $# -gt 0 ]; do
     --variant) VARIANT="${2:-}"; shift 2;;
     --policy) POLICY="${2:-}"; shift 2;;
     --opencode-bin) OPENCODE_BIN="${2:-}"; shift 2;;
+    --no-install-opencode) NO_INSTALL_OPENCODE="1"; shift;;
     --repo) REPO_URL="${2:-}"; shift 2;;
     --install-dir) INSTALL_DIR="${2:-}"; shift 2;;
     -h|--help) usage; exit 0;;
@@ -100,15 +105,48 @@ done
 NODE_BIN="$(command -v node)"
 ok "node: $NODE_BIN ($(node --version))"
 
-# --- resolve opencode binary ------------------------------------------------
+# --- resolve / install opencode binary ---------------------------------------
+# OpenCode's own installer puts the binary at ~/.opencode/bin/opencode and adds
+# it to PATH by editing your shell rc file — but that only takes effect in NEW
+# shells. So: (1) check PATH, (2) check the known install dir directly (covers
+# "installed but this shell hasn't picked it up yet"), (3) auto-install via the
+# official script if still missing, (4) always resolve to an ABSOLUTE path so
+# the MCP server itself works regardless of this terminal's PATH.
+resolve_opencode_bin() {
+  if command -v opencode >/dev/null 2>&1; then command -v opencode; return 0; fi
+  if [ -x "$OPENCODE_DEFAULT_BIN" ]; then echo "$OPENCODE_DEFAULT_BIN"; return 0; fi
+  return 1
+}
+
 if [ -z "$OPENCODE_BIN" ]; then
-  if command -v opencode >/dev/null 2>&1; then
-    OPENCODE_BIN="$(command -v opencode)"
-  else
-    warn "opencode not found on PATH. Install it from https://opencode.ai (e.g. 'brew install sst/tap/opencode' or 'npm i -g opencode-ai')."
+  if found="$(resolve_opencode_bin)"; then
+    OPENCODE_BIN="$found"
+  elif [ "$NO_INSTALL_OPENCODE" = "1" ]; then
+    warn "opencode not found and --no-install-opencode was set. Install it from https://opencode.ai."
     warn "Continuing; the config will reference 'opencode' by name — fix it later with set_delegate_config or --opencode-bin."
     OPENCODE_BIN="opencode"
+  else
+    info "OpenCode not found — installing it now (official installer: https://opencode.ai/install)"
+    if command -v curl >/dev/null 2>&1; then
+      if curl -fsSL https://opencode.ai/install | bash >/tmp/ocd-opencode-install.log 2>&1; then
+        ok "OpenCode installed"
+      else
+        warn "OpenCode auto-install failed — see /tmp/ocd-opencode-install.log, or install manually: https://opencode.ai"
+      fi
+    else
+      warn "'curl' not found — can't auto-install OpenCode. Install manually: https://opencode.ai"
+    fi
+    if found="$(resolve_opencode_bin)"; then
+      OPENCODE_BIN="$found"
+    else
+      warn "Still can't find opencode. The config will reference 'opencode' by name — fix later with set_delegate_config or --opencode-bin."
+      OPENCODE_BIN="opencode"
+    fi
   fi
+fi
+# Found/installed but this shell's PATH doesn't see it yet — flag it for the closing summary.
+if [ "$OPENCODE_BIN" != "opencode" ] && ! command -v opencode >/dev/null 2>&1; then
+  NEEDS_PATH_HINT="1"
 fi
 [ "$OPENCODE_BIN" = "opencode" ] || ok "opencode: $OPENCODE_BIN"
 
@@ -252,6 +290,26 @@ printf "   %sCheck:%s %s auth list    %sAdd:%s %s auth login\n" "$DIM" "$RST" "$
 # --- done -------------------------------------------------------------------
 echo
 ok "${BOLD}Done.${RST}"
+
+if [ "$NEEDS_PATH_HINT" = "1" ]; then
+  echo
+  info "Heads up: this terminal doesn't see the 'opencode' command yet"
+  RC_FILE="your shell's rc file"
+  case "$(basename "${SHELL:-}")" in
+    zsh) RC_FILE="~/.zshrc";;
+    bash) [ "$(uname)" = "Darwin" ] && RC_FILE="~/.bash_profile" || RC_FILE="~/.bashrc";;
+    fish) RC_FILE="~/.config/fish/config.fish";;
+  esac
+  cat <<EOF2
+  It's installed at: $OPENCODE_BIN
+  $SERVER_NAME already uses that full path directly, so delegation works right now —
+  nothing to fix for the MCP server itself.
+  To use the 'opencode' command yourself in THIS terminal, either:
+    - open a new terminal tab/window, or
+    - run:  source $RC_FILE
+EOF2
+fi
+
 cat <<EOF
 
   Server:  $ENTRY
