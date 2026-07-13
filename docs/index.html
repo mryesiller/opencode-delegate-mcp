@@ -112,6 +112,17 @@
   details.adv[open] summary::before { content: "▾ "; }
   details.adv .field { margin-top: 16px; }
 
+  .scenario { margin-top: 9px; font-size: 12.5px; color: var(--fg-dim); line-height: 1.5; }
+  .scenario b { color: var(--fg); }
+  .scenario .warn { color: var(--warn); }
+  .tag {
+    display: inline-block; font-size: 11px; font-weight: 700; padding: 1px 8px; border-radius: 999px;
+    background: var(--card-2); border: 1px solid var(--border-strong); color: var(--fg-dim);
+    vertical-align: middle; margin-left: 4px;
+  }
+  optgroup { color: var(--fg-dim); font-style: normal; font-weight: 700; }
+  option { color: var(--fg); font-weight: 400; }
+
   .out { position: relative; }
   pre {
     margin: 0; background: #0a0c11; color: #e8ecf5; border: 1px solid var(--border-strong);
@@ -178,18 +189,16 @@
       <h2 id="cfgHead">1 · Configure</h2>
 
       <div class="field">
+        <label for="preset">Model scenario <span class="hint">— pick an example</span></label>
+        <p class="hint">Choose a preset to auto-fill the model, or pick <b>Custom</b> to type your own — a local Ollama/LM&nbsp;Studio model works too.</p>
+        <select id="preset"></select>
+      </div>
+
+      <div class="field">
         <label for="model">Default model <span class="hint">— provider/model</span></label>
         <p class="hint">The cheap model that does the busywork. Run <code>opencode models</code> for the full list.</p>
-        <input type="text" id="model" list="models" value="minimax-coding-plan/MiniMax-M2.5-highspeed" spellcheck="false" autocapitalize="off" />
-        <datalist id="models">
-          <option value="minimax-coding-plan/MiniMax-M2.5-highspeed"></option>
-          <option value="minimax-coding-plan/MiniMax-M2.7-highspeed"></option>
-          <option value="minimax-coding-plan/MiniMax-M3"></option>
-          <option value="openrouter/minimax/minimax-m2.5"></option>
-          <option value="openrouter/minimax/minimax-m2"></option>
-          <option value="openrouter/deepseek/deepseek-chat"></option>
-          <option value="openrouter/z-ai/glm-4.6"></option>
-        </datalist>
+        <input type="text" id="model" value="minimax-coding-plan/MiniMax-M2.5-highspeed" spellcheck="false" autocapitalize="off" />
+        <p class="scenario" id="scenarioNote"></p>
       </div>
 
       <div class="field" id="targetsField">
@@ -280,6 +289,72 @@
   var mode = "install"; // "install" | "update"
   var $ = function (id) { return document.getElementById(id); };
   function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+
+  // Example scenarios (real provider/model ids). Extend this list any time.
+  var CUSTOM = "__custom__";
+  var PRESETS = [
+    { group: "MiniMax · Coding Plan (subscription)", items: [
+      { id: "minimax-coding-plan/MiniMax-M2.5-highspeed", label: "MiniMax M2.5 · high-speed", cost: "$0 · plan", note: "Cheap and fast — a great default for busywork." },
+      { id: "minimax-coding-plan/MiniMax-M2.7-highspeed", label: "MiniMax M2.7 · high-speed", cost: "$0 · plan", note: "A bit stronger, still fast." },
+      { id: "minimax-coding-plan/MiniMax-M3", label: "MiniMax M3", cost: "$0 · plan", note: "Most capable MiniMax on the coding plan." }
+    ]},
+    { group: "OpenCode Zen (hosted)", items: [
+      { id: "opencode-go/deepseek-v4-flash", label: "DeepSeek V4 Flash", cost: "low · hosted", note: "Fast, low-cost hosted DeepSeek — nice for high-volume edits." },
+      { id: "opencode-go/glm-5.2", label: "GLM 5.2", cost: "low · hosted", note: "Strong general-purpose coder, hosted." },
+      { id: "opencode-go/qwen3.6-plus", label: "Qwen3.6 Plus", cost: "low · hosted", note: "Qwen coder variant, hosted." }
+    ]},
+    { group: "OpenRouter (pay-per-token)", items: [
+      { id: "openrouter/deepseek/deepseek-chat", label: "DeepSeek Chat", cost: "≈ per-token", note: "Cheap and capable via OpenRouter." },
+      { id: "openrouter/qwen/qwen3-coder", label: "Qwen3 Coder", cost: "≈ per-token", note: "Coder-tuned Qwen via OpenRouter." },
+      { id: "openrouter/z-ai/glm-4.6", label: "GLM 4.6 (Z.AI)", cost: "≈ per-token", note: "Z.AI GLM via OpenRouter." }
+    ]},
+    { group: "Local · bring your own", items: [
+      { id: "ollama/qwen2.5-coder:7b", label: "Ollama · Qwen2.5 Coder 7B", cost: "free · local", note: "Runs on your machine via Ollama.", local: true },
+      { id: "lmstudio/qwen2.5-coder-7b", label: "LM Studio · Qwen2.5 Coder", cost: "free · local", note: "Runs locally via LM Studio's server.", local: true }
+    ]}
+  ];
+  var PRESET_MAP = {};
+  PRESETS.forEach(function (g) { g.items.forEach(function (it) { PRESET_MAP[it.id] = it; }); });
+
+  function buildPresetSelect() {
+    var sel = $("preset");
+    var html = '<option value="' + CUSTOM + '">Custom — type your own / local model</option>';
+    PRESETS.forEach(function (g) {
+      html += '<optgroup label="' + esc(g.group) + '">';
+      g.items.forEach(function (it) {
+        html += '<option value="' + esc(it.id) + '">' + esc(it.label) + "</option>";
+      });
+      html += "</optgroup>";
+    });
+    sel.innerHTML = html;
+  }
+
+  function renderScenarioNote() {
+    var id = ($("model").value || "").trim();
+    var p = PRESET_MAP[id];
+    var el = $("scenarioNote");
+    if (!p) {
+      el.innerHTML = '<b>Custom model.</b> Enter any <code>provider/model</code> id. For a local model, configure the provider (e.g. <code>ollama</code>) in OpenCode first, then use its id like <code>ollama/qwen2.5-coder:7b</code>.';
+      return;
+    }
+    var h = "<b>" + esc(p.label) + '</b><span class="tag">' + esc(p.cost) + "</span><br>" + esc(p.note);
+    if (p.local) h += '<br><span class="warn">Configure this provider in OpenCode first (e.g. <code>ollama serve</code>), then adjust the id to a model you have.</span>';
+    el.innerHTML = h;
+  }
+
+  // Keep the <select> and the free-text input in sync both ways.
+  function syncSelectFromModel() {
+    var id = ($("model").value || "").trim();
+    $("preset").value = PRESET_MAP[id] ? id : CUSTOM;
+    renderScenarioNote();
+  }
+  function applyPreset() {
+    var v = $("preset").value;
+    if (v !== CUSTOM) { $("model").value = v; }
+    else { $("model").focus(); }
+    renderScenarioNote();
+    update();
+  }
   // Double-quote for shell; escape ", \ and ` but keep $ so $HOME etc. expand.
   function dq(s) { return "\"" + String(s).replace(/(["\\`])/g, "\\$1") + "\""; }
   // Double-quote and also escape $ (for literal values that shouldn't expand).
@@ -380,6 +455,8 @@
 
   document.addEventListener("input", update);
   document.addEventListener("change", update);
+  $("preset").addEventListener("change", applyPreset);
+  $("model").addEventListener("input", syncSelectFromModel);
   $("mInstall").addEventListener("click", function () { setMode("install"); });
   $("mUpdate").addEventListener("click", function () { setMode("update"); });
   $("copy").addEventListener("click", function () {
@@ -388,6 +465,9 @@
       setTimeout(function () { b.textContent = "Copy"; b.classList.remove("ok"); }, 1600);
     });
   });
+
+  buildPresetSelect();
+  syncSelectFromModel();
   setMode("install");
 </script>
 </body>
