@@ -275,12 +275,31 @@
         <p class="hint">Which agents should get the <code>delegate_*</code> tools.</p>
         <div class="checks">
           <label class="check"><input type="checkbox" class="target" value="claude" checked>
-            <span><span class="t">Claude Code</span><br><span class="d">registers via <code>claude mcp add -s user</code></span></span></label>
+            <span><span class="t">Claude Code</span><br><span class="d">registers via <code>claude mcp add</code></span></span></label>
           <label class="check"><input type="checkbox" class="target" value="codex" checked>
             <span><span class="t">Codex</span><br><span class="d">registers via <code>codex mcp add</code></span></span></label>
           <label class="check"><input type="checkbox" class="target" value="opencode">
             <span><span class="t">OpenCode</span><br><span class="d">adds to <code>opencode.json</code> (self-delegation)</span></span></label>
         </div>
+      </div>
+
+      <div class="field" id="scopeField">
+        <label>Scope <span class="hint">— where it gets registered</span></label>
+        <p class="hint">Defaults to <b>User</b> (global). Not every host has all three natively — see notes below.</p>
+        <div class="checks">
+          <label class="check"><input type="radio" name="scope" class="scope" value="user" checked>
+            <span><span class="t">User (global)</span><br><span class="d">Available in every project on this machine</span></span></label>
+          <label class="check"><input type="radio" name="scope" class="scope" value="project">
+            <span><span class="t">Project</span><br><span class="d">Shared via version control · Claude: <code>.mcp.json</code> · Codex: <code>.codex/config.toml</code> · OpenCode: <code>opencode.json</code> — both Claude and Codex need a one-time human approval before they'll actually load it</span></span></label>
+          <label class="check"><input type="radio" name="scope" class="scope" value="local">
+            <span><span class="t">Local</span><br><span class="d">Private to you, this project only. Native in Claude Code; Codex/OpenCode fall back to Project scope.</span></span></label>
+        </div>
+      </div>
+
+      <div class="field hidden" id="projectDirField">
+        <label for="projectDir">Project directory <span class="hint">— for Project/Local scope</span></label>
+        <p class="hint">Leave blank to use the directory you run the command from.</p>
+        <input type="text" id="projectDir" placeholder="/Users/you/code/my-app" spellcheck="false" autocapitalize="off" />
       </div>
 
       <div class="field" id="policyField">
@@ -341,6 +360,15 @@
       <div class="note hidden" id="updateNote">
         <span>💡</span>
         <span>You can also reconfigure from your agent — just ask it: <code>set_delegate_config { "default_model": "…" }</code>. Changes are read fresh on the next delegation; no restart needed.</span>
+      </div>
+    </div>
+
+    <div class="card full">
+      <h2>Prefer to have your AI do it?</h2>
+      <p class="cardlead" id="aiPromptLead">Paste this into Claude Code, Codex, or any coding agent with shell access — it'll run the command, check the result, and fix common problems itself.</p>
+      <div class="out">
+        <button class="copy" id="copyPrompt">Copy</button>
+        <pre id="aiPrompt"><code></code></pre>
       </div>
     </div>
 
@@ -497,15 +525,26 @@
     return out;
   }
 
+  function selectedScope() {
+    var el = document.querySelector(".scope:checked");
+    return el ? el.value : "user";
+  }
+
   // Both builders return { prefix: "<command start>", flags: [{fl,val}, ...] } —
   // always rendered as ONE physical line (no comments, no \-continuations), so
   // pasting it into any terminal runs the whole thing as a single atomic command.
   function buildInstall() {
     var targets = Array.prototype.slice.call(document.querySelectorAll(".target:checked")).map(function (c) { return c.value; });
     var policy = Array.prototype.slice.call(document.querySelectorAll(".policy:checked")).map(function (c) { return c.value; });
+    var scope = selectedScope();
+    var projectDir = ($("projectDir").value || "").trim();
     var cf = configFlags();
     var model = cf.shift(); // --model always first
     var flags = [model, { fl: "--targets", val: targets.join(",") || "claude" }].concat(cf);
+    if (scope !== "user") {
+      flags.push({ fl: "--scope", val: scope });
+      if (projectDir) flags.push({ fl: "--project-dir", val: projectDir });
+    }
     if (policy.length) flags.push({ fl: "--policy", val: policy.join(",") });
     return { prefix: "curl -fsSL " + BASE + " | bash -s --", flags: flags };
   }
@@ -529,11 +568,32 @@
     return out;
   }
 
+  function buildAiPrompt(cmdText) {
+    if (mode === "update") {
+      return "Reconfigure the opencode-delegate-mcp MCP server for me. Run this command, then read the output and tell me the resulting config:\n\n" +
+        cmdText;
+    }
+    return "Install and register the opencode-delegate-mcp MCP server for me.\n\n" +
+      "Run this command exactly as-is, then show me the output. Flag any warnings (missing OpenCode, an unauthenticated provider, PATH issues), " +
+      "and confirm it registered by running `claude mcp list` and/or `codex mcp list` (whichever CLI I have installed). " +
+      "If something fails, diagnose it and fix it yourself (e.g. install a missing prerequisite) rather than just reporting the error:\n\n" +
+      cmdText;
+  }
+
+  function updateScopeVisibility() {
+    var scope = selectedScope();
+    $("projectDirField").classList.toggle("hidden", mode !== "install" || scope === "user");
+  }
+
   var currentText = "";
+  var currentPromptText = "";
   function update() {
+    updateScopeVisibility();
     var data = mode === "update" ? buildUpdate() : buildInstall();
     $("cmd").querySelector("code").innerHTML = renderHTML(data);
     currentText = renderText(data);
+    currentPromptText = buildAiPrompt(currentText);
+    $("aiPrompt").querySelector("code").textContent = currentPromptText;
   }
 
   function setMode(m) {
@@ -550,6 +610,7 @@
       ? "One command, one paste. Copy it and run it in your terminal — it downloads and installs in a single step, no follow-up needed."
       : "One command, one paste. Copy it and run it in your terminal — it updates the running config immediately, no restart needed.";
     $("targetsField").classList.toggle("hidden", !install);
+    $("scopeField").classList.toggle("hidden", !install);
     $("policyField").classList.toggle("hidden", !install);
     $("instDirField").classList.toggle("hidden", install);
     $("revealWrap").classList.toggle("hidden", !install);
@@ -567,6 +628,12 @@
   $("copy").addEventListener("click", function () {
     navigator.clipboard.writeText(currentText).then(function () {
       var b = $("copy"); b.textContent = "Copied ✓"; b.classList.add("ok");
+      setTimeout(function () { b.textContent = "Copy"; b.classList.remove("ok"); }, 1600);
+    });
+  });
+  $("copyPrompt").addEventListener("click", function () {
+    navigator.clipboard.writeText(currentPromptText).then(function () {
+      var b = $("copyPrompt"); b.textContent = "Copied ✓"; b.classList.add("ok");
       setTimeout(function () { b.textContent = "Copy"; b.classList.remove("ok"); }, 1600);
     });
   });

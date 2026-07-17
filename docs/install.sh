@@ -44,6 +44,8 @@ REPO_URL="$REPO_URL_DEFAULT"
 INSTALL_DIR="$INSTALL_DIR_DEFAULT"
 OPENCODE_DEFAULT_BIN="$HOME/.opencode/bin/opencode"
 NEEDS_PATH_HINT="0"
+SCOPE="user"
+PROJECT_DIR="$PWD"
 
 # --- pretty logging ---------------------------------------------------------
 if [ -t 1 ]; then
@@ -65,6 +67,8 @@ ${BOLD}opencode-delegate-mcp installer${RST}
 
   --model <provider/model>   Default model, e.g. minimax-coding-plan/MiniMax-M2.5-highspeed
   --targets <list>           Comma list of hosts to register: claude,codex,opencode (default: claude,codex)
+  --scope <local|project|user>  Registration scope (default: user = global, all your projects)
+  --project-dir <path>       Project directory for --scope local|project (default: current directory)
   --timeout <seconds>        Per-delegation timeout in seconds (default: 600)
   --default-dir <path>       Default working directory for delegations (optional)
   --agent <name>             Default OpenCode agent (optional)
@@ -83,6 +87,8 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --model) MODEL="${2:-}"; shift 2;;
     --targets) TARGETS="${2:-}"; shift 2;;
+    --scope) SCOPE="${2:-}"; shift 2;;
+    --project-dir) PROJECT_DIR="${2:-}"; shift 2;;
     --timeout) TIMEOUT_SEC="${2:-}"; shift 2;;
     --default-dir) DEFAULT_DIR="${2:-}"; shift 2;;
     --agent) AGENT="${2:-}"; shift 2;;
@@ -162,6 +168,16 @@ fi
 [ -n "$MODEL" ] || die "A default model is required."
 case "$MODEL" in */*) ;; *) warn "Model '$MODEL' does not look like 'provider/model'.";; esac
 
+# --- validate scope -----------------------------------------------------------
+case "$SCOPE" in
+  local|project|user) ;;
+  *) die "Invalid --scope '$SCOPE' (valid: local, project, user)";;
+esac
+if [ "$SCOPE" != "user" ]; then
+  [ -d "$PROJECT_DIR" ] || die "--project-dir '$PROJECT_DIR' does not exist."
+  PROJECT_DIR="$(cd "$PROJECT_DIR" && pwd)"
+fi
+
 # --- clone / update ---------------------------------------------------------
 info "Installing server into $INSTALL_DIR"
 if [ -d "$INSTALL_DIR/.git" ]; then
@@ -203,28 +219,72 @@ node -e '
 ok "Config written (default model: $MODEL)"
 
 # --- register with hosts ----------------------------------------------------
+# SCOPE ("local" | "project" | "user") controls WHERE each host registers the
+# server. "user" (default) is global — every project on this machine. "project"
+# and "local" scope it to $PROJECT_DIR (default: the directory this installer
+# was run from). Not every host has a native 3-way scope model — see the
+# per-host notes below for how each one maps or falls back.
 register_claude() {
   command -v claude >/dev/null 2>&1 || { warn "claude CLI not found; skipping Claude Code registration."; return; }
-  claude mcp remove "$SERVER_NAME" -s user >/dev/null 2>&1 || true
-  if claude mcp add "$SERVER_NAME" -s user -- "$NODE_BIN" "$ENTRY" >/dev/null 2>&1; then
-    ok "Registered with Claude Code (user scope)"
-  else
-    warn "claude mcp add failed; register manually: claude mcp add $SERVER_NAME -s user -- \"$NODE_BIN\" \"$ENTRY\""
-  fi
+  ( cd "$PROJECT_DIR" || exit 1
+    # Remove from every scope first so switching scopes on a re-run never
+    # leaves a stale duplicate registration behind in the old one.
+    claude mcp remove "$SERVER_NAME" -s local >/dev/null 2>&1 || true
+    claude mcp remove "$SERVER_NAME" -s project >/dev/null 2>&1 || true
+    claude mcp remove "$SERVER_NAME" -s user >/dev/null 2>&1 || true
+    if claude mcp add "$SERVER_NAME" -s "$SCOPE" -- "$NODE_BIN" "$ENTRY" >/dev/null 2>&1; then
+      ok "Registered with Claude Code ($SCOPE scope)"
+      case "$SCOPE" in
+        project)
+          printf "   %sShared via .mcp.json in %s — commit it so your team gets it too.%s\n" "$DIM" "$PROJECT_DIR" "$RST"
+          printf "   %sNeeds one-time approval: run 'claude' in that directory and approve it when asked.%s\n" "$DIM" "$RST"
+          ;;
+        local)   printf "   %sPrivate to you, active only in %s.%s\n" "$DIM" "$PROJECT_DIR" "$RST";;
+      esac
+    else
+      warn "claude mcp add failed; register manually: (cd \"$PROJECT_DIR\" && claude mcp add $SERVER_NAME -s $SCOPE -- \"$NODE_BIN\" \"$ENTRY\")"
+    fi
+  )
 }
 
 register_codex() {
   command -v codex >/dev/null 2>&1 || { warn "codex CLI not found; skipping Codex registration."; return; }
-  codex mcp remove "$SERVER_NAME" >/dev/null 2>&1 || true
-  if codex mcp add "$SERVER_NAME" -- "$NODE_BIN" "$ENTRY" >/dev/null 2>&1; then
-    ok "Registered with Codex"
+  if [ "$SCOPE" = "user" ]; then
+    codex mcp remove "$SERVER_NAME" >/dev/null 2>&1 || true
+    if codex mcp add "$SERVER_NAME" -- "$NODE_BIN" "$ENTRY" >/dev/null 2>&1; then
+      ok "Registered with Codex (user scope)"
+    else
+      warn "codex mcp add failed; register manually: codex mcp add $SERVER_NAME -- \"$NODE_BIN\" \"$ENTRY\""
+    fi
+    return
+  fi
+  # The `codex mcp add` CLI has no project-scope flag yet. Codex's own documented
+  # mechanism for project scope is a .codex/config.toml it walks up from cwd to
+  # find — so we write that table directly (append-only, idempotent). It only
+  # loads for TRUSTED projects; see the note this prints below.
+  [ "$SCOPE" = "local" ] && warn "Codex has no separate 'local' scope; using project scope instead (.codex/config.toml)."
+  codex_dir="$PROJECT_DIR/.codex"
+  codex_toml="$codex_dir/config.toml"
+  if [ -f "$codex_toml" ] && grep -q "^\[mcp_servers\.$SERVER_NAME\]" "$codex_toml" 2>/dev/null; then
+    ok "Codex project config already has '$SERVER_NAME' ($codex_toml) — edit it manually to change it"
   else
-    warn "codex mcp add failed; register manually: codex mcp add $SERVER_NAME -- \"$NODE_BIN\" \"$ENTRY\""
+    mkdir -p "$codex_dir"
+    { printf '\n[mcp_servers.%s]\n' "$SERVER_NAME"
+      printf 'command = "%s"\n' "$NODE_BIN"
+      printf 'args = ["%s"]\n' "$ENTRY"
+    } >> "$codex_toml"
+    ok "Registered with Codex (project scope: $codex_toml)"
+    printf "   %sCodex only loads this for TRUSTED projects — approve the trust prompt the first time you run codex here.%s\n" "$DIM" "$RST"
   fi
 }
 
 register_opencode() {
-  OCJSON="$OPENCODE_JSON" ENTRY="$ENTRY" NODE="$NODE_BIN" SNAME="$SERVER_NAME" \
+  target="$OPENCODE_JSON"
+  if [ "$SCOPE" != "user" ]; then
+    [ "$SCOPE" = "local" ] && warn "OpenCode has no separate 'local' scope; using project scope instead (opencode.json in the project dir)."
+    target="$PROJECT_DIR/opencode.json"
+  fi
+  OCJSON="$target" ENTRY="$ENTRY" NODE="$NODE_BIN" SNAME="$SERVER_NAME" \
   node -e '
     const fs = require("fs"), path = require("path");
     const p = process.env.OCJSON;
@@ -235,7 +295,7 @@ register_opencode() {
     c.mcp[process.env.SNAME] = { type: "local", command: [process.env.NODE, process.env.ENTRY], enabled: true };
     fs.mkdirSync(path.dirname(p), { recursive: true });
     fs.writeFileSync(p, JSON.stringify(c, null, 2) + "\n");
-  ' && ok "Registered with OpenCode ($OPENCODE_JSON)" || warn "Failed to update $OPENCODE_JSON"
+  ' && ok "Registered with OpenCode ($target)" || warn "Failed to update $target"
 }
 
 info "Registering MCP server with: $TARGETS"
@@ -310,11 +370,15 @@ if [ "$NEEDS_PATH_HINT" = "1" ]; then
 EOF2
 fi
 
+SCOPE_LINE="Scope:   $SCOPE (global — all your projects)"
+[ "$SCOPE" != "user" ] && SCOPE_LINE="Scope:   $SCOPE ($PROJECT_DIR)"
+
 cat <<EOF
 
   Server:  $ENTRY
   Config:  $CONFIG_PATH
   Model:   $MODEL
+  $SCOPE_LINE
 
   Try it from your primary agent:
     "Use delegate_task to create a file test.txt containing 'hi' in <your repo path>."

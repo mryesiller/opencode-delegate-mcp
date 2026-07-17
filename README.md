@@ -45,6 +45,37 @@ The installer will:
 
 Then restart your agent (or reload its MCP servers).
 
+### Let your AI install it for you
+
+You don't have to run this yourself — paste the block below into Claude Code, Codex, or any coding agent with shell access. It'll run the command, read the output, and fix common problems (missing prerequisite, unauthenticated provider) itself instead of just reporting them.
+
+> Install and register the opencode-delegate-mcp MCP server for me. Use `opencode/deepseek-v4-flash-free` (free, no signup) as the default model unless I say otherwise, register it with whichever of Claude Code / Codex you find on my machine, and use "user" scope (available in all my projects) unless I ask for "project" or "local" scope instead.
+>
+> Run:
+> ```bash
+> curl -fsSL https://mryesiller.github.io/opencode-delegate-mcp/install.sh | bash -s -- --model "opencode/deepseek-v4-flash-free" --targets "claude,codex"
+> ```
+>
+> Then show me the output, flag any warnings (missing OpenCode, unauthenticated provider, PATH issues), and confirm it's registered by running `claude mcp list` and/or `codex mcp list`. If something fails, diagnose and fix it rather than just reporting it.
+
+The web configurator generates this same prompt for you, kept in sync with whatever model/targets/scope you pick in the form — see the "Prefer to have your AI do it?" card.
+
+### Scope: global, project, or local
+
+By default the installer registers the server **globally** (`user` scope) — available in every project on this machine. Pass `--scope` to change that, and `--project-dir` to pick which project (defaults to the directory you run the installer from):
+
+```bash
+curl -fsSL https://mryesiller.github.io/opencode-delegate-mcp/install.sh | bash -s -- --model "…" --scope project --project-dir "$(pwd)"
+```
+
+| `--scope` | Claude Code | Codex | OpenCode |
+| --- | --- | --- | --- |
+| `user` (default) | `~/.claude.json` — all your projects | `~/.codex/config.toml` — all your projects | `~/.config/opencode/opencode.json` — all your projects |
+| `project` | `.mcp.json` in the project — commit it to share with your team, but **needs one-time approval** | `.codex/config.toml` in the project — **only loads for trusted projects** | `opencode.json` in the project |
+| `local` | Private to you, this project only (Claude Code's native local scope) | falls back to `project` (Codex has no separate local tier) | falls back to `project` (OpenCode has no separate local tier) |
+
+Both hosts gate project-scoped config behind a one-time human approval — this isn't optional and an unattended script can't do it for you: Claude Code shows it as "⏸ Pending approval" in `claude mcp list` until you run `claude` interactively in that directory and approve it; Codex only loads a project's `.codex/config.toml` once you've approved that project as trusted, the first time you run `codex` there. Re-running the installer with a different `--scope` cleanly moves the registration (Claude Code: removed from every scope before re-adding at the new one; Codex/OpenCode: the old file entry is left as-is, so remove it by hand if you're switching away from `project`).
+
 ### Requirements
 - Node.js ≥ 18, npm, git, and curl.
 - [OpenCode](https://opencode.ai) — the installer sets this up for you automatically if it's missing (see below), no separate step needed.
