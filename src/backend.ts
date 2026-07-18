@@ -258,9 +258,13 @@ export class OpenCodeBackend implements Backend {
     } else if (req.continueSession) {
       args.push("--continue");
     }
-    for (const f of req.files ?? []) args.push("--file", f);
-    // Positional message goes last.
+    // Positional message BEFORE --file: OpenCode's --file is a yargs
+    // array-type flag that greedily swallows trailing bare tokens, so a
+    // positional placed after it gets absorbed as another --file value
+    // instead of being treated as the message (surfaces as a confusing
+    // "File not found: <task text>" error whenever files[] is non-empty).
     args.push(req.task);
+    for (const f of req.files ?? []) args.push("--file", f);
     return args;
   }
 
