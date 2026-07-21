@@ -3,7 +3,7 @@
 
 You have an MCP server named **`opencode-delegate`** that runs a **cheaper model** through OpenCode. Use it to offload high-volume, low-risk work so your own (expensive) reasoning stays on the hard parts. Treat a delegated result like a junior engineer's PR: brief it well, then review what comes back.
 
-Tools: `delegate_task` (general), `delegate_tests` (tests). The subagent does **not** see this conversation — put full context, file paths, constraints, and acceptance criteria in the task. Pass the repo path as `directory`.
+Tools: `delegate_task` (general), `delegate_tests` (tests). The subagent does **not** see this conversation — put full context, file paths, constraints, and acceptance criteria in the task. Pass the repo path as `directory`. Note the field name: `delegate_task` takes `task`, `delegate_tests` takes `scope` (each also accepts the other's name as an alias, but prefer the correct one).
 
 ### ✅ Delegate when the task is high-volume / low-risk
 - Writing tests for existing, well-specified behavior → prefer `delegate_tests`.

@@ -201,7 +201,7 @@ Good for: writing repetitive/boilerplate code, mechanical refactors, generating 
 Avoid for: architecture, security-sensitive logic, ambiguous specs, or anything where a wrong edit is costly.
 
 Args:
-  - task (string, required): Complete instructions for the subagent, including acceptance criteria.
+  - task (string, required — alias: \`scope\`, accepted for parity with delegate_tests; provide one): Complete instructions for the subagent, including acceptance criteria.
   - directory (string): Absolute path of the repo/dir to work in. Defaults to the server's cwd or config.default_directory.
   - model (string): Override provider/model, e.g. "minimax-coding-plan/MiniMax-M2.5-highspeed". Defaults to config.default_model.
   - agent (string): OpenCode agent name to run as.
@@ -213,9 +213,12 @@ Args:
   - auto_approve (boolean): Auto-approve tool permissions (default from config, usually true).
   - response_format ('markdown' | 'json'): Output format (default 'markdown').
 
+See also: delegate_tests — same shape, dedicated to test-writing; its required field is named \`scope\` instead of \`task\`.
+
 Returns structured content: { ok, model, session_id, directory, result, error?, usage{tokens,cost}, actions[], duration_ms }.`,
       inputSchema: {
-        task: z.string().min(1).describe("Complete, self-contained instructions for the subagent"),
+        task: z.string().min(1).optional().describe("Complete, self-contained instructions for the subagent. Required unless `scope` is given instead."),
+        scope: z.string().min(1).optional().describe("Alias for `task` (delegate_tests uses this name) — provide one or the other"),
         directory: z.string().min(1).optional().describe("Absolute working directory for the subagent"),
         model: z.string().min(1).optional().describe("provider/model override (see list_models)"),
         agent: z.string().min(1).optional().describe("OpenCode agent name"),
@@ -236,7 +239,13 @@ Returns structured content: { ok, model, session_id, directory, result, error?, 
     },
     async (args) => {
       const config = loadConfig();
-      const resolved = resolveRequest(config, args, args.task);
+      const task = args.task ?? args.scope;
+      if (!task) {
+        return errorResponse(
+          "Missing `task`: pass complete instructions for the subagent (you can also use `scope`, delegate_tests' name for the same field).",
+        );
+      }
+      const resolved = resolveRequest(config, args, task);
       if ("error" in resolved) return errorResponse(resolved.error);
       const result = await backend.run(resolved.req);
       return renderResult(result, resolved.directory, args.response_format);
@@ -251,16 +260,19 @@ Returns structured content: { ok, model, session_id, directory, result, error?, 
       description: `Test-focused wrapper around delegate_task. The subagent writes (and optionally runs) tests for the given scope while avoiding changes to production code unless strictly required to make tests pass.
 
 Args:
-  - scope (string, required): What to test — module, files, behaviors, edge cases.
+  - scope (string, required — alias: \`task\`, accepted for parity with delegate_task; provide one): What to test — module, files, behaviors, edge cases.
   - directory (string): Absolute repo path. Defaults to config.default_directory or server cwd.
   - framework (string): Optional testing framework/runner hint (e.g. "vitest", "pytest").
   - run_tests (boolean): Ask the subagent to run the suite and report pass/fail (default true).
   - model / agent / variant / profile / files / session / continue_session / auto_approve: same as delegate_task.
   - response_format ('markdown' | 'json'): Output format (default 'markdown').
 
+See also: delegate_task — same shape, general-purpose; its required field is named \`task\` instead of \`scope\`.
+
 Returns the same structured content shape as delegate_task.`,
       inputSchema: {
-        scope: z.string().min(1).describe("What to test: module/files/behaviors/edge cases"),
+        scope: z.string().min(1).optional().describe("What to test: module/files/behaviors/edge cases. Required unless `task` is given instead."),
+        task: z.string().min(1).optional().describe("Alias for `scope` (delegate_task uses this name) — provide one or the other"),
         directory: z.string().min(1).optional().describe("Absolute working directory"),
         framework: z.string().min(1).optional().describe("Testing framework/runner hint"),
         run_tests: z.boolean().default(true).describe("Run the suite and report results"),
@@ -283,10 +295,16 @@ Returns the same structured content shape as delegate_task.`,
     },
     async (args) => {
       const config = loadConfig();
+      const scope = args.scope ?? args.task;
+      if (!scope) {
+        return errorResponse(
+          "Missing `scope`: describe what to test (you can also use `task`, delegate_task's name for the same field).",
+        );
+      }
       const taskLines = [
         "You are a test-writing subagent. Focus strictly on tests.",
         "",
-        `Scope: ${args.scope}`,
+        `Scope: ${scope}`,
         "",
         "Rules:",
         "- Write clear, meaningful tests covering the described scope and its edge cases.",
