@@ -90,7 +90,10 @@ function runProcess(
     try {
       child = spawn(bin, args, {
         cwd: opts.cwd,
-        env: process.env,
+        // OpenCode 2.x resolves its project from $PWD rather than the real
+        // cwd, so an inherited PWD would make it work in the MCP host's
+        // directory instead of the requested one.
+        env: opts.cwd ? { ...process.env, PWD: opts.cwd } : process.env,
         stdio: ["ignore", "pipe", "pipe"],
       });
     } catch (err) {
@@ -213,7 +216,11 @@ export function parseOpencodeJsonl(stdout: string): {
         usage.reasoningTokens += Number(t.reasoning ?? 0);
         usage.cacheReadTokens += Number(t.cache?.read ?? 0);
         usage.cacheWriteTokens += Number(t.cache?.write ?? 0);
-        usage.totalTokens += Number(t.total ?? 0);
+        // OpenCode 2.x no longer reports a total.
+        usage.totalTokens += Number(
+          t.total ??
+            Number(t.input ?? 0) + Number(t.output ?? 0) + Number(t.reasoning ?? 0),
+        );
         usage.cost += Number(part.cost ?? 0);
         break;
       }
@@ -227,6 +234,24 @@ export function parseOpencodeJsonl(stdout: string): {
 
 export class OpenCodeBackend implements Backend {
   readonly name = "opencode";
+
+  private majorVersions = new Map<string, number>();
+
+  /** Major version of the OpenCode binary, probed once per binary. */
+  private async majorVersion(bin: string): Promise<number> {
+    const cached = this.majorVersions.get(bin);
+    if (cached !== undefined) return cached;
+    const res = await runProcess(bin, ["--version"], { timeoutMs: 15_000 });
+    const match = /(\d+)\.\d+/.exec(res.stdout);
+    if (res.code !== 0 || !match) {
+      throw new Error(
+        `Could not determine the OpenCode version from '${bin} --version' (exit ${res.code}): ${(res.stdout + res.stderr).trim() || "no output"}`,
+      );
+    }
+    const major = Number(match[1]);
+    this.majorVersions.set(bin, major);
+    return major;
+  }
 
   async isAvailable(bin: string): Promise<boolean> {
     const res = await runProcess(bin, ["--version"], { timeoutMs: 15_000 });
@@ -247,11 +272,21 @@ export class OpenCodeBackend implements Backend {
       .filter((l) => l.length > 0 && l.includes("/"));
   }
 
-  private buildArgs(req: DelegateRequest): string[] {
-    const args = ["run", "--dir", req.directory, "--format", "json"];
-    if (req.model) args.push("--model", req.model);
+  private buildArgs(req: DelegateRequest, major: number): string[] {
+    const args = ["run", "--format", "json"];
+    if (major >= 2) {
+      // OpenCode 2.x removed --dir (the spawn sets cwd and PWD instead) and
+      // --variant (the variant is now a "#variant" suffix on the model).
+      if (req.variant && !req.model) {
+        throw new Error("OpenCode 2.x needs a model to apply a variant to; set a model or drop the variant.");
+      }
+      if (req.model) args.push("--model", req.variant ? `${req.model}#${req.variant}` : req.model);
+    } else {
+      args.push("--dir", req.directory);
+      if (req.model) args.push("--model", req.model);
+      if (req.variant) args.push("--variant", req.variant);
+    }
     if (req.agent) args.push("--agent", req.agent);
-    if (req.variant) args.push("--variant", req.variant);
     if (req.autoApprove) args.push("--auto");
     if (req.session) {
       args.push("--session", req.session);
@@ -283,7 +318,20 @@ export class OpenCodeBackend implements Backend {
       };
     }
 
-    const args = this.buildArgs(req);
+    let args: string[];
+    try {
+      args = this.buildArgs(req, await this.majorVersion(req.bin));
+    } catch (err) {
+      return {
+        ok: false,
+        text: "",
+        usage: emptyUsage(),
+        actions: [],
+        durationMs: Date.now() - started,
+        model: req.model,
+        error: err instanceof Error ? err.message : String(err),
+      };
+    }
     const res = await runProcess(req.bin, args, {
       cwd: req.directory,
       timeoutMs: req.timeoutMs,
